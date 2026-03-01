@@ -37,7 +37,12 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_STORE_DIR = os.path.join("context", "sessions")
+def _default_store_dir() -> str:
+    from .. import config as _cfg
+    return os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "sessions")
+
+
+DEFAULT_STORE_DIR = None  # resolved lazily
 DEFAULT_MAX_MESSAGES = 200
 
 _META_PATTERN = re.compile(r"<!-- msg:(.*?) -->")
@@ -54,10 +59,10 @@ class SessionStore:
 
     def __init__(
         self,
-        base_dir: str = DEFAULT_STORE_DIR,
+        base_dir: str | None = None,
         max_messages: int = DEFAULT_MAX_MESSAGES,
     ) -> None:
-        self.base_dir = base_dir
+        self.base_dir = base_dir or _default_store_dir()
         self.max_messages = max_messages
         os.makedirs(base_dir, exist_ok=True)
 

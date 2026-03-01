@@ -174,7 +174,8 @@ def write_soul(user_name: str, personality: str, focus: str, language: str) -> s
         language=language,
         personality_description=_personality_description(personality),
     )
-    path = os.path.join("context", "soul", "SOUL.md")
+    home = os.path.expanduser("~/.pythonclaw")
+    path = os.path.join(home, "context", "soul", "SOUL.md")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content.strip() + "\n")
@@ -190,7 +191,8 @@ def write_persona(user_name: str, personality: str, focus: str, language: str) -
         style_notes=_style_notes(personality),
         focus_guidelines=_focus_guidelines(focus),
     )
-    path = os.path.join("context", "persona", "persona.md")
+    home = os.path.expanduser("~/.pythonclaw")
+    path = os.path.join(home, "context", "persona", "persona.md")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(content.strip() + "\n")

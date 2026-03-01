@@ -219,7 +219,7 @@ class TestAgentCronTools:
         assert "scheduled" in result.lower()
 
     def test_cron_add_persisted_to_json(self, tmp_path):
-        from pythonclaw.scheduler.cron import DYNAMIC_JOBS_FILE
+        from pythonclaw.scheduler.cron import _dynamic_jobs_file as _djf; DYNAMIC_JOBS_FILE = _djf()
         cron_mgr = self._make_cron_manager(tmp_path)
         cron_mgr.add_dynamic_job("persist_job", "0 8 * * *", "Daily check")
         assert os.path.exists(DYNAMIC_JOBS_FILE)
@@ -235,7 +235,7 @@ class TestAgentCronTools:
         assert "removed" in result.lower()
 
         # Should no longer be in JSON
-        from pythonclaw.scheduler.cron import DYNAMIC_JOBS_FILE
+        from pythonclaw.scheduler.cron import _dynamic_jobs_file as _djf; DYNAMIC_JOBS_FILE = _djf()
         with open(DYNAMIC_JOBS_FILE) as f:
             data = json.load(f)
         assert "rm_job" not in data
@@ -269,7 +269,7 @@ class TestAgentCronTools:
         c._scheduler.get_jobs.return_value = [mock_job]
 
         # Fake the dynamic_jobs.json
-        from pythonclaw.scheduler.cron import DYNAMIC_JOBS_FILE
+        from pythonclaw.scheduler.cron import _dynamic_jobs_file as _djf; DYNAMIC_JOBS_FILE = _djf()
         os.makedirs(os.path.dirname(DYNAMIC_JOBS_FILE), exist_ok=True)
         with open(DYNAMIC_JOBS_FILE, "w") as f:
             json.dump({"my_dynamic_job": {"cron": "0 9 * * *", "prompt": "hi"}}, f)
@@ -279,7 +279,7 @@ class TestAgentCronTools:
         assert "[dynamic]" in result
 
     def test_load_dynamic_jobs_from_json(self, tmp_path):
-        from pythonclaw.scheduler.cron import DYNAMIC_JOBS_FILE
+        from pythonclaw.scheduler.cron import _dynamic_jobs_file as _djf; DYNAMIC_JOBS_FILE = _djf()
         os.makedirs(os.path.dirname(DYNAMIC_JOBS_FILE), exist_ok=True)
         with open(DYNAMIC_JOBS_FILE, "w") as f:
             json.dump({
@@ -292,6 +292,6 @@ class TestAgentCronTools:
         assert jobs["pre_existing"]["cron"] == "0 7 * * *"
 
     def teardown_method(self, method):
-        from pythonclaw.scheduler.cron import DYNAMIC_JOBS_FILE
+        from pythonclaw.scheduler.cron import _dynamic_jobs_file as _djf; DYNAMIC_JOBS_FILE = _djf()
         if os.path.exists(DYNAMIC_JOBS_FILE):
             os.remove(DYNAMIC_JOBS_FILE)

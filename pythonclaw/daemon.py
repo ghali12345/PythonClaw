@@ -62,12 +62,15 @@ def start_daemon(
     log_handle.write(f"{'='*60}\n")
     log_handle.flush()
 
+    home = str(config.PYTHONCLAW_HOME)
+    os.makedirs(home, exist_ok=True)
+
     proc = subprocess.Popen(
         cmd,
         stdout=log_handle,
         stderr=subprocess.STDOUT,
         start_new_session=True,
-        cwd=os.getcwd(),
+        cwd=home,
     )
 
     _write_pid(proc.pid)
@@ -76,7 +79,7 @@ def start_daemon(
     _write_meta({
         "pid": proc.pid,
         "port": port,
-        "cwd": os.getcwd(),
+        "cwd": home,
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "channels": channels or [],
         "config_path": config_path,

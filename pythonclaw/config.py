@@ -1,23 +1,17 @@
 """
 Centralised configuration for PythonClaw.
 
+All runtime data lives under ``~/.pythonclaw/`` (the *home* directory):
+
+    ~/.pythonclaw/
+      pythonclaw.json          ← config file
+      context/                 ← sessions, logs, memory, skills, …
+      daemon.log               ← daemon output
+      pythonclaw.pid           ← daemon PID
+
 Load order (later sources override earlier ones):
-  1. pythonclaw.json in current working directory
-  2. ~/.pythonclaw/pythonclaw.json
-  3. Environment variables (highest priority)
-
-The JSON file supports // line comments and trailing commas for convenience
-(a subset of JSON5 that covers the most common needs).
-
-Usage
------
-    from pythonclaw import config
-
-    config.load()                       # call once at startup
-    provider = config.get("llm", "provider", env="LLM_PROVIDER", default="deepseek")
-    token    = config.get("channels", "telegram", "token", env="TELEGRAM_BOT_TOKEN")
-    users    = config.get_int_list("channels", "telegram", "allowedUsers",
-                                   env="TELEGRAM_ALLOWED_USERS")
+  1. ~/.pythonclaw/pythonclaw.json
+  2. Environment variables (highest priority)
 """
 
 from __future__ import annotations
@@ -28,10 +22,17 @@ import re
 from pathlib import Path
 from typing import Any
 
+PYTHONCLAW_HOME = Path(os.environ.get("PYTHONCLAW_HOME", Path.home() / ".pythonclaw"))
+
 _TRAILING_COMMA_RE = re.compile(r",\s*([}\]])")
 
 _config: dict | None = None
 _config_path: Path | None = None
+
+
+def home() -> Path:
+    """Return the PythonClaw home directory (``~/.pythonclaw`` by default)."""
+    return PYTHONCLAW_HOME
 
 
 def _strip_json5(text: str) -> str:
@@ -71,8 +72,8 @@ def _strip_json5(text: str) -> str:
 
 def _find_config_file() -> Path | None:
     candidates = [
+        PYTHONCLAW_HOME / "pythonclaw.json",
         Path.cwd() / "pythonclaw.json",
-        Path.home() / ".pythonclaw" / "pythonclaw.json",
     ]
     for p in candidates:
         if p.is_file():

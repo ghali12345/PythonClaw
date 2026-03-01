@@ -19,14 +19,19 @@ import os
 import shutil
 
 
-def init(project_path: str = ".") -> None:
+def init(project_path: str | None = None) -> None:
     """
-    Initialise a new PythonClaw project at *project_path*.
+    Initialise a new PythonClaw project.
 
-    Copies template files into `<project_path>/context/` only for
+    Copies template files into ``<project_path>/context/`` only for
     directories that do not already exist (safe to re-run).
+    Defaults to ``~/.pythonclaw``.
     """
-    application_dir = os.path.abspath(project_path)
+    if project_path is None:
+        from . import config
+        application_dir = str(config.PYTHONCLAW_HOME)
+    else:
+        application_dir = os.path.abspath(project_path)
     context_dir = os.path.join(application_dir, "context")
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
     templates_dir = os.path.join(pkg_dir, "templates")

@@ -209,7 +209,7 @@ async def _api_config_save(request: Request):
 
     cfg_path = config.config_path()
     if cfg_path is None:
-        cfg_path = Path.cwd() / "pythonclaw.json"
+        cfg_path = config.PYTHONCLAW_HOME / "pythonclaw.json"
 
     try:
         json_text = json.dumps(new_config, indent=2, ensure_ascii=False)
@@ -247,7 +247,7 @@ async def _api_skills():
                 os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                 "templates", "skills",
             )
-            skills_dirs = [pkg_templates, os.path.join("context", "skills")]
+            skills_dirs = [pkg_templates, os.path.join(str(config.PYTHONCLAW_HOME), "context", "skills")]
             skills_dirs = [d for d in skills_dirs if os.path.isdir(d)]
             registry = SkillRegistry(skills_dirs=skills_dirs)
             skills_meta = registry.discover()
@@ -331,9 +331,9 @@ async def _api_identity():
                     return f.read_text(encoding="utf-8").strip()
         return None
 
-    cwd = Path.cwd()
-    soul = _read_md(str(cwd / "context" / "soul"))
-    persona = _read_md(str(cwd / "context" / "persona"))
+    home = config.PYTHONCLAW_HOME
+    soul = _read_md(str(home / "context" / "soul"))
+    persona = _read_md(str(home / "context" / "persona"))
 
     def _tool_info(schema: dict) -> dict:
         fn = schema.get("function", {})
@@ -373,7 +373,7 @@ async def _api_save_soul(request: Request):
         if not content:
             return JSONResponse({"ok": False, "error": "Content cannot be empty."}, status_code=400)
 
-        soul_dir = Path.cwd() / "context" / "soul"
+        soul_dir = config.PYTHONCLAW_HOME / "context" / "soul"
         soul_dir.mkdir(parents=True, exist_ok=True)
         soul_file = soul_dir / "SOUL.md"
         soul_file.write_text(content + "\n", encoding="utf-8")
@@ -393,7 +393,7 @@ async def _api_save_persona(request: Request):
         if not content:
             return JSONResponse({"ok": False, "error": "Content cannot be empty."}, status_code=400)
 
-        persona_dir = Path.cwd() / "context" / "persona"
+        persona_dir = config.PYTHONCLAW_HOME / "context" / "persona"
         persona_dir.mkdir(parents=True, exist_ok=True)
         persona_file = persona_dir / "persona.md"
         persona_file.write_text(content + "\n", encoding="utf-8")
@@ -598,12 +598,12 @@ def _reload_agent_identity() -> None:
     if _agent is None:
         return
     from ..core.agent import _load_text_dir_or_file
-    cwd = Path.cwd()
+    home = config.PYTHONCLAW_HOME
     _agent.soul_instruction = _load_text_dir_or_file(
-        str(cwd / "context" / "soul"), label="Soul"
+        str(home / "context" / "soul"), label="Soul"
     )
     _agent.persona_instruction = _load_text_dir_or_file(
-        str(cwd / "context" / "persona"), label="Persona"
+        str(home / "context" / "persona"), label="Persona"
     )
     _agent._needs_onboarding = False
     _agent._init_system_prompt()

@@ -33,8 +33,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_INTERVAL = 60
-LOG_DIR = os.path.join("context", "logs")
-LOG_FILE = os.path.join(LOG_DIR, "heartbeat.log")
+def _log_dir() -> str:
+    from .. import config as _cfg
+    return os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "logs")
+
+
+def _log_file() -> str:
+    return os.path.join(_log_dir(), "heartbeat.log")
 
 # Minimal probe message sent to the LLM
 _PROBE_MESSAGES = [{"role": "user", "content": "ping"}]
@@ -49,12 +54,17 @@ class HeartbeatMonitor:
         interval_sec: int = DEFAULT_INTERVAL,
         telegram_bot: "TelegramBot | None" = None,
         alert_chat_id: int | None = None,
-        log_path: str = LOG_FILE,
+        log_path: str | None = None,
     ) -> None:
         self._provider = provider
         self._interval = interval_sec
         self._telegram_bot = telegram_bot
         self._alert_chat_id = alert_chat_id
+        if log_path is None:
+            try:
+                log_path = _log_file()
+            except Exception:
+                log_path = os.path.join(os.path.expanduser("~/.pythonclaw"), "context", "logs", "heartbeat.log")
         self._log_path = log_path
         self._running = False
         self._task: asyncio.Task | None = None

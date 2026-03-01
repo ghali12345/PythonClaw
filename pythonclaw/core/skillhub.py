@@ -213,7 +213,8 @@ def install_skill(
     Returns the path to the installed skill directory.
     """
     if target_dir is None:
-        target_dir = os.path.join("context", "skills")
+        from .. import config as _cfg
+        target_dir = os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "skills")
 
     detail = None
     if not skill_md_override:

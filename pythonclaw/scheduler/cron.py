@@ -52,9 +52,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DYNAMIC_JOBS_FILE = os.path.join("context", "cron", "dynamic_jobs.json")
+def _cron_dir() -> str:
+    from .. import config as _cfg
+    return os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "cron")
 
-DEFAULT_JOBS_PATH = os.path.join("context", "cron", "jobs.yaml")
+
+def _dynamic_jobs_file() -> str:
+    return os.path.join(_cron_dir(), "dynamic_jobs.json")
+
+
+def _default_jobs_path() -> str:
+    return os.path.join(_cron_dir(), "jobs.yaml")
 
 
 class CronScheduler:
@@ -68,11 +76,11 @@ class CronScheduler:
     def __init__(
         self,
         session_manager: "SessionManager",
-        jobs_path: str = DEFAULT_JOBS_PATH,
+        jobs_path: str | None = None,
         telegram_bot: "TelegramBot | None" = None,
     ) -> None:
         self._sm = session_manager
-        self._jobs_path = jobs_path
+        self._jobs_path = jobs_path or _default_jobs_path()
         self._telegram_bot = telegram_bot
         self._scheduler = AsyncIOScheduler()
 
@@ -186,18 +194,20 @@ class CronScheduler:
 
     def _load_dynamic_jobs(self) -> dict[str, dict]:
         """Load persisted dynamic jobs from JSON. Returns {job_id: job_dict}."""
-        if not os.path.exists(DYNAMIC_JOBS_FILE):
+        djf = _dynamic_jobs_file()
+        if not os.path.exists(djf):
             return {}
         try:
-            with open(DYNAMIC_JOBS_FILE, "r", encoding="utf-8") as f:
+            with open(djf, "r", encoding="utf-8") as f:
                 return json.load(f)
         except (OSError, json.JSONDecodeError) as exc:
             logger.error("[CronScheduler] Failed to load dynamic jobs: %s", exc)
             return {}
 
     def _save_dynamic_jobs(self, jobs: dict[str, dict]) -> None:
-        os.makedirs(os.path.dirname(DYNAMIC_JOBS_FILE), exist_ok=True)
-        with open(DYNAMIC_JOBS_FILE, "w", encoding="utf-8") as f:
+        djf = _dynamic_jobs_file()
+        os.makedirs(os.path.dirname(djf), exist_ok=True)
+        with open(djf, "w", encoding="utf-8") as f:
             json.dump(jobs, f, indent=2, ensure_ascii=False)
 
     def _register_dynamic_jobs(self) -> int:

@@ -460,7 +460,8 @@ def create_skill(
     All paths are validated against the sandbox.  Resource filenames are
     sanitized to prevent directory traversal.
     """
-    skills_dir = os.path.join("context", "skills")
+    from .. import config as _cfg
+    skills_dir = os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "skills")
     _resolve_in_sandbox(skills_dir)
     os.makedirs(skills_dir, exist_ok=True)
 

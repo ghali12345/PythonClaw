@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import signal
 
 from .core.llm.base import LLMProvider
@@ -33,10 +32,8 @@ async def start_channels(
     store = SessionStore()
     session_manager = SessionManager(agent_factory=lambda sid: None, store=store)
 
-    jobs_path = os.path.join("context", "cron", "jobs.yaml")
     scheduler = CronScheduler(
         session_manager=session_manager,
-        jobs_path=jobs_path,
     )
 
     def agent_factory(session_id: str) -> PersistentAgent:

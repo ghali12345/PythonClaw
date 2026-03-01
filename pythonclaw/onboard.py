@@ -300,11 +300,12 @@ def _validate_key(cfg: dict, provider: dict) -> None:
 
 
 def _save_config(cfg: dict, config_path: str | None) -> Path:
-    """Write config to disk."""
+    """Write config to disk (defaults to ~/.pythonclaw/pythonclaw.json)."""
     if config_path:
         out = Path(config_path)
     else:
-        out = Path.cwd() / "pythonclaw.json"
+        out = config.PYTHONCLAW_HOME / "pythonclaw.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
 
     # Ensure default sections exist
     cfg.setdefault("channels", {"telegram": {"token": "", "allowedUsers": []}, "discord": {"token": "", "allowedUsers": [], "allowedChannels": []}})

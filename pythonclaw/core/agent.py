@@ -73,16 +73,22 @@ def _load_text_dir_or_file(path: str | None, label: str = "File") -> str:
     return ""
 
 
-_DETAIL_LOG_DIR = os.path.join("context", "logs")
-_DETAIL_LOG_FILE = os.path.join(_DETAIL_LOG_DIR, "history_detail.jsonl")
+def _detail_log_dir() -> str:
+    from .. import config as _cfg
+    return os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "logs")
+
+
+def _detail_log_file() -> str:
+    return os.path.join(_detail_log_dir(), "history_detail.jsonl")
 
 
 def _log_detail(entry: dict) -> None:
     """Append a JSON line to the detailed interaction log."""
     try:
-        os.makedirs(_DETAIL_LOG_DIR, exist_ok=True)
+        log_dir = _detail_log_dir()
+        os.makedirs(log_dir, exist_ok=True)
         entry["ts"] = datetime.now().isoformat(timespec="milliseconds")
-        with open(_DETAIL_LOG_FILE, "a", encoding="utf-8") as f:
+        with open(_detail_log_file(), "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError:
         pass
@@ -129,18 +135,19 @@ class Agent:
         cron_manager=None,
     ) -> None:
         if memory_dir is None and skills_dirs is None and knowledge_path is None and persona_path is None:
-            cwd = os.getcwd()
-            context_dir = os.path.join(cwd, "context")
+            from .. import config as _cfg
+            home = str(_cfg.PYTHONCLAW_HOME)
+            context_dir = os.path.join(home, "context")
             if not os.path.exists(context_dir):
                 if verbose:
                     print(f"[Agent] Context not found. Initialising default context in {context_dir}...")
                 try:
-                    from ...init import init
-                    init(cwd)
+                    from ..init import init
+                    init(home)
                 except ImportError:
                     try:
                         from pythonclaw.init import init
-                        init(cwd)
+                        init(home)
                     except ImportError:
                         print("[Agent] Warning: Could not auto-initialise context.")
             if verbose:
@@ -152,9 +159,9 @@ class Agent:
             if soul_path is None:
                 soul_path = os.path.join(context_dir, "soul")
 
-        # Sandbox: restrict file-write tools to the project working tree
-        sandbox_root = os.getcwd()
-        set_sandbox([sandbox_root])
+        # Sandbox: restrict file-write tools to the home directory
+        sandbox_root = str(_cfg.PYTHONCLAW_HOME) if '_cfg' in dir() else os.getcwd()
+        set_sandbox([sandbox_root, os.path.expanduser("~")])
         if verbose:
             print(f"[Agent] Sandbox root: {sandbox_root}")
 

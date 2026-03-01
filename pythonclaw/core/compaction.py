@@ -45,7 +45,12 @@ logger = logging.getLogger(__name__)
 CHARS_PER_TOKEN = 4
 DEFAULT_AUTO_THRESHOLD_TOKENS = 6000   # trigger auto-compaction at ~6k tokens
 DEFAULT_RECENT_KEEP = 6                # keep last N chat messages verbatim
-COMPACTION_LOG_FILE = os.path.join("context", "compaction", "history.jsonl")
+def _compaction_log_file() -> str:
+    from .. import config as _cfg
+    return os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "compaction", "history.jsonl")
+
+
+COMPACTION_LOG_FILE = None  # resolved lazily
 
 
 # ── Token estimation ──────────────────────────────────────────────────────────
@@ -58,8 +63,9 @@ def estimate_tokens(messages: list[dict]) -> int:
 
 # ── JSONL persistence ─────────────────────────────────────────────────────────
 
-def persist_compaction(summary: str, message_count: int, log_path: str = COMPACTION_LOG_FILE) -> None:
+def persist_compaction(summary: str, message_count: int, log_path: str | None = None) -> None:
     """Append one compaction entry to the JSONL audit log."""
+    log_path = log_path or _compaction_log_file()
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     entry = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -150,7 +156,7 @@ def compact(
     memory: "MemoryManager | None" = None,
     recent_keep: int = DEFAULT_RECENT_KEEP,
     instruction: str | None = None,
-    log_path: str = COMPACTION_LOG_FILE,
+    log_path: str | None = None,
 ) -> tuple[list[dict], str]:
     """
     Compact conversation history.

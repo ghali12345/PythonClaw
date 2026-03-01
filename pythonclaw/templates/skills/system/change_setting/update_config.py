@@ -7,7 +7,13 @@ import os
 import re
 import sys
 
-CONFIG_FILE = "pythonclaw.json"
+def _config_file() -> str:
+    home = os.path.expanduser("~/.pythonclaw")
+    for p in [os.path.join(home, "pythonclaw.json"), "pythonclaw.json"]:
+        if os.path.exists(p):
+            return p
+    return os.path.join(home, "pythonclaw.json")
+
 
 SENSITIVE_PATTERNS = re.compile(
     r"(apikey|api_key|token|password|secret)", re.IGNORECASE
@@ -15,15 +21,16 @@ SENSITIVE_PATTERNS = re.compile(
 
 
 def _load_config() -> dict:
-    if not os.path.exists(CONFIG_FILE):
-        print(f"Error: {CONFIG_FILE} not found in {os.getcwd()}", file=sys.stderr)
+    cfg_file = _config_file()
+    if not os.path.exists(cfg_file):
+        print(f"Error: {cfg_file} not found", file=sys.stderr)
         sys.exit(1)
-    with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+    with open(cfg_file, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def _save_config(cfg: dict) -> None:
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+    with open(_config_file(), "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
