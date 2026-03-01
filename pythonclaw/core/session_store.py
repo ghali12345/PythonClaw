@@ -64,7 +64,7 @@ class SessionStore:
     ) -> None:
         self.base_dir = base_dir or _default_store_dir()
         self.max_messages = max_messages
-        os.makedirs(base_dir, exist_ok=True)
+        os.makedirs(self.base_dir, exist_ok=True)
 
     # ── File path ─────────────────────────────────────────────────────────────
 
