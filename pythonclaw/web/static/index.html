@@ -266,6 +266,18 @@
             </div>
           </div>
 
+          <!-- Memory -->
+          <div class="section-card mb-6">
+            <h3 class="text-[.8125rem] font-semibold text-white mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20z"/><path d="M12 6v6l4 2"/></svg>
+              Memory
+              <span id="memory-badge" class="text-[.625rem] text-gray-500 font-normal ml-1">0 entries</span>
+            </h3>
+            <div id="memory-content" class="max-h-[260px] overflow-y-auto chat-scroll">
+              <span class="text-[.75rem] text-gray-600 italic">No memories stored yet.</span>
+            </div>
+          </div>
+
           <!-- Tools & Quick Actions Row -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <!-- Tools List -->
@@ -676,6 +688,29 @@ async function refreshDashboard() {
       `).join('');
     }
   } catch (e) { console.error('Identity fetch:', e); }
+
+  try {
+    const res3 = await fetch('/api/memories');
+    const mem = await res3.json();
+    const container = document.getElementById('memory-content');
+    const badge = document.getElementById('memory-badge');
+    const entries = mem.memories || {};
+    const keys = Object.keys(entries);
+    badge.textContent = keys.length + ' entries';
+
+    if (keys.length === 0) {
+      container.innerHTML = '<span class="text-[.75rem] text-gray-600 italic">No memories stored yet. Chat with the agent to build memory.</span>';
+    } else {
+      container.innerHTML = '<div class="space-y-2">' + keys.map(k => {
+        const val = escapeHtml(String(entries[k]));
+        const preview = val.length > 200 ? val.substring(0, 200) + '...' : val;
+        return `<div class="px-3 py-2 rounded-lg bg-surface-800/50 border border-surface-700/30">
+          <div class="text-[.6875rem] text-cyan-400 font-medium mb-1">${escapeHtml(k)}</div>
+          <div class="text-[.75rem] text-gray-400 leading-relaxed whitespace-pre-wrap">${preview}</div>
+        </div>`;
+      }).join('') + '</div>';
+    }
+  } catch (e) { console.error('Memories fetch:', e); }
 }
 
 // ── Identity Editor ──────────────────────────────────────────────────────────
