@@ -2,39 +2,49 @@
 name: http_request
 description: >
   Make HTTP requests (GET, POST, PUT, DELETE, PATCH) to any API endpoint.
-  Use when the user asks to call an API, test an endpoint, fetch JSON data
-  from a URL, or interact with a REST API.
+  Use when: the user asks to call an API, test an endpoint, fetch JSON/data from
+  a URL, or interact with a REST API. NOT for: web scraping (use web_scraper),
+  web search (use tavily_search), or file downloads (use curl/wget).
+dependencies: requests
+metadata:
+  emoji: "🌐"
 ---
+# HTTP Request
 
-## Instructions
+## When to Use
 
-Make arbitrary HTTP requests to any API endpoint.
+- [ ] Call REST APIs (GET, POST, PUT, DELETE, PATCH)
+- [ ] Test or probe API endpoints
+- [ ] Fetch JSON or data from a URL
+- [ ] Send request bodies and custom headers
 
-### Prerequisites
+## When NOT to Use
+
+- [ ] Web search — use `tavily_search` (web_search tool)
+- [ ] Scraping page content — use `web_scraper`
+- [ ] Simple file downloads — use `curl` or `wget`
+- [ ] GitHub operations — use `github` skill
+
+## Setup
 
 Install dependency: `pip install requests`
 
-### Usage
+## Usage/Commands
 
 ```bash
 python {skill_path}/request.py URL [options]
 ```
 
-Options:
-- `--method GET|POST|PUT|DELETE|PATCH` (default: GET)
-- `--data '{"key": "value"}'` — JSON request body
-- `--header "Name: Value"` — custom header (repeatable)
-- `--timeout 30` — timeout in seconds
-- `--format text|json|headers` — output format
+| Option | Description |
+|--------|-------------|
+| `--method GET|POST|PUT|DELETE|PATCH` | HTTP method (default: GET) |
+| `--data '{"key": "value"}'` | JSON request body |
+| `--header "Name: Value"` | Custom header (repeatable) |
+| `--timeout N` | Timeout in seconds |
+| `--format text|json|headers` | Output format |
 
-### Examples
+## Notes
 
-- "GET https://api.github.com/users/octocat"
-- "POST to https://httpbin.org/post with body {'name': 'test'}"
-- "Call the weather API at https://api.example.com/weather?city=Tokyo"
-
-## Resources
-
-| File | Description |
-|------|-------------|
-| `request.py` | Generic HTTP request tool |
+- For APIs requiring auth, use `--header "Authorization: Bearer <token>"`
+- JSON body must be valid; escape quotes properly for shell
+- Prefer this for structured API calls; use web_scraper for HTML extraction

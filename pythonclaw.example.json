@@ -52,7 +52,20 @@
       "token": "",
       "allowedUsers": [],
       "allowedChannels": []
+    },
+    "whatsapp": {
+      "phoneNumberId": "",
+      "token": "",
+      "verifyToken": "pythonclaw_verify",
+      "callbackUrl": "",
+      "allowedNumbers": []
     }
+  },
+  "isolation": {
+    "perGroup": false
+  },
+  "concurrency": {
+    "maxAgents": 4
   },
   "heartbeat": {
     "intervalSec": 60,

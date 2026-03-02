@@ -1,20 +1,32 @@
 ---
 name: youtube
-description: >
-  Get YouTube video information, metadata, and transcripts/subtitles.
-  Use when the user asks about a YouTube video, wants a video summary,
-  needs a transcript, or asks to extract info from a YouTube URL.
+description: "Get YouTube video information, metadata, and transcripts/subtitles. Use when: user asks about a YouTube video, wants a video summary, needs a transcript, or asks to extract info from a YouTube URL. NOT for: downloading videos, live streams, or private/unlisted videos."
+dependencies: yt-dlp, youtube-transcript-api
+metadata:
+  emoji: "▶️"
 ---
 
-## Instructions
+# YouTube Skill
 
-Extract information and transcripts from YouTube videos.
+Extract information and transcripts from YouTube videos via yt-dlp and youtube-transcript-api.
 
-### Prerequisites
+## When to Use
 
-Install dependencies: `pip install yt-dlp youtube-transcript-api`
+✅ **USE this skill when:**
+- "What's this video about? https://youtube.com/watch?v=xyz"
+- "Get the transcript of this video"
+- "Search YouTube for Python tutorials"
+- "Video title, duration, and description"
+- User provides a YouTube URL and wants metadata or transcript
 
-### Usage
+## When NOT to Use
+
+❌ **DON'T use this skill when:**
+- Downloading videos or audio → use yt-dlp directly with download opts
+- Live streams → transcript availability may be limited
+- Private or unlisted videos → access may be restricted
+
+## Usage/Commands
 
 ```bash
 python {skill_path}/youtube_info.py URL [command] [options]
@@ -32,12 +44,11 @@ Options:
 
 ### Examples
 
-- "What's this video about? https://youtube.com/watch?v=xyz" → `youtube_info.py URL info`
-- "Get the transcript of this video" → `youtube_info.py URL transcript`
-- "Search YouTube for Python tutorials" → `youtube_info.py "Python tutorials" search`
+- "What's this video about? https://youtube.com/watch?v=xyz" → `python {skill_path}/youtube_info.py <URL> info`
+- "Get the transcript of this video" → `python {skill_path}/youtube_info.py <URL> transcript`
+- "Search YouTube for Python tutorials" → `python {skill_path}/youtube_info.py "Python tutorials" search`
 
-## Resources
+## Notes
 
-| File | Description |
-|------|-------------|
-| `youtube_info.py` | YouTube info and transcript extractor |
+- Install dependencies: `pip install yt-dlp youtube-transcript-api`
+- Transcript availability depends on whether the video has captions

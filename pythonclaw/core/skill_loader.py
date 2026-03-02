@@ -61,10 +61,21 @@ logger = logging.getLogger(__name__)
 
 # ── Data classes ─────────────────────────────────────────────────────────────
 
+class CategoryMetadata:
+    """Parsed CATEGORY.md frontmatter."""
+
+    __slots__ = ("name", "description", "emoji")
+
+    def __init__(self, name: str, description: str, emoji: str = "") -> None:
+        self.name = name
+        self.description = description
+        self.emoji = emoji
+
+
 class SkillMetadata:
     """Level 1 — lightweight metadata for a single skill."""
 
-    __slots__ = ("name", "description", "path", "category")
+    __slots__ = ("name", "description", "path", "category", "emoji", "dependencies")
 
     def __init__(
         self,
@@ -72,11 +83,15 @@ class SkillMetadata:
         description: str,
         path: str,
         category: str = "",
+        emoji: str = "",
+        dependencies: list[str] | None = None,
     ) -> None:
         self.name = name
         self.description = description
         self.path = path
         self.category = category
+        self.emoji = emoji
+        self.dependencies: list[str] = dependencies or []
 
 
 class Skill:
@@ -108,10 +123,19 @@ class SkillRegistry:
     def __init__(self, skills_dirs: list[str] | None = None) -> None:
         self.skills_dirs: list[str] = list(skills_dirs) if skills_dirs else []
         self._cache: list[SkillMetadata] | None = None
+        self._categories: dict[str, CategoryMetadata] = {}
 
     def invalidate(self) -> None:
         """Clear the discovery cache so new skills are picked up on next call."""
         self._cache = None
+        self._categories = {}
+
+    @property
+    def categories(self) -> dict[str, CategoryMetadata]:
+        """Return discovered category metadata (call discover() first)."""
+        if self._cache is None:
+            self.discover()
+        return self._categories
 
     # ── Level 1: Metadata discovery ──────────────────────────────────────
 
@@ -160,6 +184,12 @@ class SkillRegistry:
             else:
                 # Categorised layout: skills/<category>/<skill>/SKILL.md
                 category_name = entry
+                cat_md = os.path.join(entry_path, "CATEGORY.md")
+                if os.path.isfile(cat_md) and category_name not in self._categories:
+                    cat_meta = self._read_category(cat_md, category_name)
+                    if cat_meta:
+                        self._categories[category_name] = cat_meta
+
                 for sub_entry in sorted(os.listdir(entry_path)):
                     if sub_entry.startswith(("__", ".")):
                         continue
@@ -174,6 +204,39 @@ class SkillRegistry:
                             seen.add(meta.name)
 
     @staticmethod
+    def _read_category(cat_path: str, fallback_name: str) -> CategoryMetadata | None:
+        try:
+            with open(cat_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            meta, _ = parse_frontmatter(content)
+            return CategoryMetadata(
+                name=meta.get("name", fallback_name),
+                description=meta.get("description", ""),
+                emoji=meta.get("emoji", ""),
+            )
+        except OSError:
+            return None
+
+    @staticmethod
+    def _parse_deps(raw: str) -> list[str]:
+        """Parse a comma-separated or YAML-ish dependency string.
+
+        Handles ``requests, beautifulsoup4`` and ``[requests, bs4]``.
+        """
+        raw = raw.strip().strip("[]")
+        return [d.strip().strip("\"'") for d in raw.split(",") if d.strip()]
+
+    @staticmethod
+    def _parse_metadata_block(raw: str) -> dict[str, str]:
+        """Parse an indented ``key: value`` block stored as a flat string."""
+        result: dict[str, str] = {}
+        for line in raw.splitlines():
+            if ":" in line:
+                k, _, v = line.partition(":")
+                result[k.strip()] = v.strip().strip("\"'")
+        return result
+
+    @staticmethod
     def _read_metadata(
         md_path: str,
         skill_dir: str,
@@ -185,11 +248,27 @@ class SkillRegistry:
             meta, _ = parse_frontmatter(content)
             name = meta.get("name", os.path.basename(skill_dir))
             description = meta.get("description", "No description.")
+
+            emoji = ""
+            metadata_block = meta.get("metadata", "")
+            if isinstance(metadata_block, str) and metadata_block:
+                parsed = SkillRegistry._parse_metadata_block(metadata_block)
+                emoji = parsed.get("emoji", "")
+            elif isinstance(metadata_block, dict):
+                emoji = metadata_block.get("emoji", "")
+
+            deps: list[str] = []
+            raw_deps = meta.get("dependencies", "")
+            if raw_deps:
+                deps = SkillRegistry._parse_deps(raw_deps)
+
             return SkillMetadata(
                 name=name,
                 description=description,
                 path=os.path.abspath(skill_dir),
                 category=category,
+                emoji=emoji,
+                dependencies=deps,
             )
         except OSError as exc:
             logger.warning("Could not read skill at '%s': %s", md_path, exc)
@@ -260,15 +339,13 @@ class SkillRegistry:
         """
         Build a compact skill catalog string for the system prompt.
 
-        Groups skills by category and formats them as a bulleted list.
-        This is what the LLM sees at **Level 1** — all available skills
-        and their descriptions, so it can decide when to trigger them.
+        Groups skills by category and formats them as a bulleted list
+        with category descriptions from CATEGORY.md.
         """
         skills = self.discover()
         if not skills:
             return "(no skills installed)"
 
-        # Group by category
         groups: dict[str, list[SkillMetadata]] = {}
         for s in skills:
             groups.setdefault(s.category or "general", []).append(s)
@@ -276,9 +353,15 @@ class SkillRegistry:
         lines: list[str] = []
         for cat in sorted(groups):
             if cat != "general":
-                lines.append(f"\n  **{cat}**")
+                cat_meta = self._categories.get(cat)
+                if cat_meta and cat_meta.description:
+                    emoji = f"{cat_meta.emoji} " if cat_meta.emoji else ""
+                    lines.append(f"\n  **{emoji}{cat_meta.name}** — {cat_meta.description}")
+                else:
+                    lines.append(f"\n  **{cat}**")
             for s in groups[cat]:
-                lines.append(f"  - `{s.name}`: {s.description}")
+                prefix = f"{s.emoji} " if s.emoji else ""
+                lines.append(f"  - {prefix}`{s.name}`: {s.description}")
 
         return "\n".join(lines)
 

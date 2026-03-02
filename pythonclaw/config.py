@@ -184,6 +184,31 @@ def as_dict() -> dict:
     return dict(_config)
 
 
+def get_bool(*keys: str, env: str | None = None, default: bool = False) -> bool:
+    """Get a boolean config value."""
+    val = get(*keys, env=env, default=default)
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.lower() in ("1", "true", "yes")
+    return bool(val) if val is not None else default
+
+
+def per_group_isolation() -> bool:
+    """Return True if per-group context isolation is enabled."""
+    return get_bool("isolation", "perGroup", default=False)
+
+
+def group_context_dir(session_id: str) -> Path:
+    """Return the per-group context directory for *session_id*.
+
+    Maps ``session_id`` (e.g. ``telegram:123``) to a safe filesystem path
+    under ``~/.pythonclaw/context/groups/<safe_id>/``.
+    """
+    safe = re.sub(r"[^\w\-]", "_", session_id)
+    return PYTHONCLAW_HOME / "context" / "groups" / safe
+
+
 def reset() -> None:
     """Clear the cached config (mainly for testing)."""
     global _config, _config_path

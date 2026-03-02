@@ -30,8 +30,10 @@ from .. import config
 from .compaction import (
     DEFAULT_AUTO_THRESHOLD_TOKENS,
     DEFAULT_RECENT_KEEP,
-    compact as _do_compact,
     estimate_tokens,
+)
+from .compaction import (
+    compact as _do_compact,
 )
 from .knowledge.rag import KnowledgeRAG
 from .llm.base import LLMProvider
@@ -102,6 +104,7 @@ class Agent:
     Parameters
     ----------
     provider           : LLM backend (DeepSeek, Grok, Claude, Gemini, …)
+    session_id         : session identifier (enables per-group context isolation)
     memory_dir         : path to memory directory (auto-detected if None)
     skills_dirs        : list of skill directory paths
     knowledge_path     : path to knowledge directory for RAG
@@ -121,11 +124,13 @@ class Agent:
     def __init__(
         self,
         provider: LLMProvider,
+        session_id: str | None = None,
         memory_dir: str | None = None,
         skills_dirs: list[str] | None = None,
         knowledge_path: str | None = None,
         persona_path: str | None = None,
         soul_path: str | None = None,
+        tools_path: str | None = None,
         verbose: bool = False,
         show_full_context: bool = False,
         max_chat_history: int = 10,
@@ -152,15 +157,27 @@ class Agent:
                         print("[Agent] Warning: Could not auto-initialise context.")
             if verbose:
                 print(f"[Agent] Using default context at {context_dir}")
-            memory_dir = os.path.join(context_dir, "memory")
+
+            # Per-group isolation: each session gets its own memory directory
+            if session_id and _cfg.per_group_isolation():
+                group_dir = str(_cfg.group_context_dir(session_id))
+                os.makedirs(os.path.join(group_dir, "memory"), exist_ok=True)
+                memory_dir = os.path.join(group_dir, "memory")
+                if verbose:
+                    print(f"[Agent] Per-group memory: {memory_dir}")
+            else:
+                memory_dir = os.path.join(context_dir, "memory")
+
             knowledge_path = os.path.join(context_dir, "knowledge")
             skills_dirs = [os.path.join(context_dir, "skills")]
             persona_path = os.path.join(context_dir, "persona")
             if soul_path is None:
                 soul_path = os.path.join(context_dir, "soul")
+            if tools_path is None:
+                tools_path = os.path.join(context_dir, "tools")
 
         # Sandbox: restrict file-write tools to the home directory
-        sandbox_root = str(_cfg.PYTHONCLAW_HOME) if '_cfg' in dir() else os.getcwd()
+        sandbox_root = str(config.PYTHONCLAW_HOME)
         set_sandbox([sandbox_root, os.path.expanduser("~")])
         if verbose:
             print(f"[Agent] Sandbox root: {sandbox_root}")
@@ -171,6 +188,7 @@ class Agent:
             print(f"[Agent] Virtual env: {venv_path}")
 
         self.provider = provider
+        self.session_id = session_id
         self.messages: list[dict] = []
         self.verbose = verbose
         self.show_full_context = show_full_context
@@ -184,9 +202,12 @@ class Agent:
         self.loaded_skill_names: set[str] = set()
         self.pending_injections: list[str] = []
 
-        # Memory
+        # Memory — with optional global fallback for per-group isolation
         mem_dir = memory_dir or config.get("memory", "dir", env="PYTHONCLAW_MEMORY_DIR")
-        self.memory = MemoryManager(mem_dir)
+        global_mem_dir: str | None = None
+        if session_id and config.per_group_isolation():
+            global_mem_dir = os.path.join(str(config.PYTHONCLAW_HOME), "context", "memory")
+        self.memory = MemoryManager(mem_dir, global_memory_dir=global_mem_dir)
 
         # Knowledge RAG (hybrid retrieval)
         self.rag: KnowledgeRAG | None = None
@@ -222,6 +243,7 @@ class Agent:
         # Identity layers
         self.soul_instruction = _load_text_dir_or_file(soul_path, label="Soul")
         self.persona_instruction = _load_text_dir_or_file(persona_path, label="Persona")
+        self.tools_notes = _load_text_dir_or_file(tools_path, label="Tools")
 
         # Detect if the user has set up their own soul/persona (not template defaults)
         self._needs_onboarding = not self._has_user_identity(soul_path, persona_path)
@@ -230,6 +252,8 @@ class Agent:
             print(f"[Agent] Soul loaded ({len(self.soul_instruction)} chars)")
         if verbose and self.persona_instruction:
             print(f"[Agent] Persona loaded ({len(self.persona_instruction)} chars)")
+        if verbose and self.tools_notes:
+            print(f"[Agent] TOOLS.md loaded ({len(self.tools_notes)} chars)")
         if verbose and self._needs_onboarding:
             print("[Agent] No user identity found — onboarding will be triggered")
 
@@ -265,6 +289,7 @@ class Agent:
 
         soul_section = f"\n\n## Core Identity (Soul)\n{self.soul_instruction}" if self.soul_instruction else ""
         persona_section = f"\n\n## Role & Persona\n{self.persona_instruction}" if self.persona_instruction else ""
+        tools_section = f"\n\n## Local Notes (TOOLS.md)\n{self.tools_notes}" if self.tools_notes else ""
 
         web_search_section = ""
         if self._web_search_enabled:
@@ -274,7 +299,7 @@ class Agent:
    current events, facts you're unsure about, or technical documentation.
    Supports topic filters (general/news/finance) and time range filters."""
 
-        system_msg = f"""You are a PythonClaw agent — an autonomous AI assistant.{soul_section}{persona_section}
+        system_msg = f"""You are a PythonClaw agent — an autonomous AI assistant.{soul_section}{persona_section}{tools_section}
 
 You operate in a potentially sandboxed environment where you can execute code.
 
@@ -282,10 +307,10 @@ You operate in a potentially sandboxed environment where you can execute code.
 1. **Primitive Tools**: `run_command`, `read_file`, `write_file`, `list_files`
    Note: `write_file` can only write within the project directory.
 2. **Skills** (three-tier progressive loading):
-   You have access to the following skills.  Each skill's description
-   tells you WHAT it does and WHEN to use it.
+   You have access to the following skills, organised by category.
+   Each skill's description tells you WHAT it does and WHEN to use it.
 
-   **Installed Skills:**
+   **Skill Catalog:**
 {skill_catalog}
 
    To activate a skill, call `use_skill(skill_name="<name>")`.
@@ -468,6 +493,19 @@ still start onboarding but keep it brief — you can help with their task after.
 
     # ── Skill loading (Level 2) ───────────────────────────────────────────────
 
+    @staticmethod
+    def _check_dependencies(deps: list[str]) -> list[str]:
+        """Return the subset of *deps* (pip package names) that are NOT installed."""
+        from importlib.metadata import PackageNotFoundError, distribution
+
+        missing: list[str] = []
+        for pkg in deps:
+            try:
+                distribution(pkg)
+            except PackageNotFoundError:
+                missing.append(pkg)
+        return missing
+
     def _use_skill(self, skill_name: str) -> str:
         """
         Level 2: Load a skill's full instructions into context.
@@ -489,11 +527,29 @@ still start onboarding but keep it brief — you can help with their task after.
         if not skill:
             return f"Error: skill '{skill_name}' not found in catalog."
 
+        # ── Dependency check ─────────────────────────────────────────────────
+        dep_warning = ""
+        if skill.metadata.dependencies:
+            missing = self._check_dependencies(skill.metadata.dependencies)
+            if missing:
+                pip_cmd = f"pip install {' '.join(missing)}"
+                dep_warning = (
+                    f"\n\n⚠️ **MISSING DEPENDENCIES**: {', '.join(missing)}\n"
+                    f"This skill requires packages that are not installed.\n"
+                    f"Ask the user: \"This skill needs **{', '.join(missing)}**. "
+                    f"Would you like me to install {'them' if len(missing) > 1 else 'it'}?\"\n"
+                    f"If the user agrees, run: `{pip_cmd}`\n"
+                    f"Do NOT proceed with skill commands until dependencies are installed.\n"
+                )
+                if self.verbose:
+                    logger.debug("Skill '%s' missing deps: %s", skill_name, missing)
+
         # ── Pre-activation environment check ─────────────────────────────────
         setup_warning = ""
         check_script = os.path.join(skill.metadata.path, "check_setup.sh")
         if os.path.isfile(check_script):
             import subprocess
+
             from .tools import _venv_env
             try:
                 proc = subprocess.run(
@@ -530,7 +586,7 @@ still start onboarding but keep it brief — you can help with their task after.
         injection = (
             f"\n[SKILL ACTIVATED: {skill.name}]\n"
             f"Path: {skill.metadata.path}\n\n"
-            f"{skill.instructions}{resource_hint}{setup_warning}\n"
+            f"{skill.instructions}{resource_hint}{dep_warning}{setup_warning}\n"
         )
         self.pending_injections.append(injection)
         self.loaded_skill_names.add(skill_name)
@@ -538,7 +594,9 @@ still start onboarding but keep it brief — you can help with their task after.
             logger.debug("Skill activated: %s (Level 2 loaded)", skill_name)
 
         status = "activated"
-        if "FAILED" in setup_warning:
+        if dep_warning:
+            status = "activated but MISSING DEPENDENCIES — ask user to install"
+        elif "FAILED" in setup_warning:
             status = "activated with setup warnings — tell the user how to fix"
         return (
             f"Skill '{skill_name}' {status}. "
@@ -548,22 +606,81 @@ still start onboarding but keep it brief — you can help with their task after.
 
     # ── History management ────────────────────────────────────────────────────
 
+    @staticmethod
+    def _sanitize_tool_pairs(messages: list[dict]) -> list[dict]:
+        """Ensure every assistant message with ``tool_calls`` is immediately
+        followed by matching ``tool`` messages, and every ``tool`` message has
+        a preceding assistant message with a matching ``tool_calls`` entry.
+
+        Broken pairs (caused by pruning, failed restores, or errors) are
+        removed so the LLM API never receives an invalid sequence.
+        """
+        result: list[dict] = []
+        i = 0
+        n = len(messages)
+        while i < n:
+            msg = messages[i]
+            tool_calls = msg.get("tool_calls")
+
+            if msg.get("role") == "assistant" and tool_calls:
+                expected_ids: set[str] = set()
+                for tc in tool_calls:
+                    tc_id = tc.get("id") if isinstance(tc, dict) else getattr(tc, "id", None)
+                    if tc_id:
+                        expected_ids.add(tc_id)
+
+                # Collect subsequent tool responses that belong to this batch
+                j = i + 1
+                collected_tool_msgs: list[dict] = []
+                while j < n and messages[j].get("role") in ("tool", "system"):
+                    if messages[j].get("role") == "tool":
+                        collected_tool_msgs.append(messages[j])
+                    else:
+                        break  # system injection sits between tool batch and next turn
+                    j += 1
+
+                found_ids = {
+                    m.get("tool_call_id")
+                    for m in collected_tool_msgs
+                    if m.get("tool_call_id")
+                }
+
+                if expected_ids and expected_ids <= found_ids:
+                    # Valid pair — keep assistant + matching tool messages
+                    result.append(msg)
+                    result.extend(collected_tool_msgs)
+                    i = j
+                else:
+                    # Broken pair — skip the assistant message and any
+                    # orphaned tool responses
+                    logger.debug(
+                        "Dropping broken tool-call sequence: expected %s, got %s",
+                        expected_ids, found_ids,
+                    )
+                    i = j
+            elif msg.get("role") == "tool":
+                # Orphaned tool message (no preceding assistant with tool_calls) — skip
+                i += 1
+            else:
+                result.append(msg)
+                i += 1
+        return result
+
     def _get_pruned_messages(self) -> list[dict]:
         """
         Build a context window for the API call:
           - All system messages (system prompt + skill injections + compaction summaries)
           - The most recent `max_chat_history` non-system messages
 
-        Ensures the window never starts with an orphaned tool result.
+        Ensures the window contains only valid tool-call/response pairs.
         """
         system_msgs = [m for m in self.messages if m.get("role") == "system"]
         chat_msgs   = [m for m in self.messages if m.get("role") != "system"]
 
         if len(chat_msgs) > self.max_chat_history:
             chat_msgs = chat_msgs[-self.max_chat_history:]
-            while chat_msgs and chat_msgs[0].get("role") == "tool":
-                chat_msgs.pop(0)
 
+        chat_msgs = self._sanitize_tool_pairs(chat_msgs)
         return system_msgs + chat_msgs
 
     # ── Compaction ────────────────────────────────────────────────────────────
@@ -694,7 +811,19 @@ still start onboarding but keep it brief — you can help with their task after.
 
                 tool_rounds += 1
                 if tool_rounds > self.MAX_TOOL_ROUNDS:
-                    self.messages.append(message.model_dump())
+                    msg_dump = message.model_dump()
+                    self.messages.append(msg_dump)
+
+                    # Provide stub responses for every tool_call so the
+                    # history stays valid for the API (each tool_call_id
+                    # MUST have a matching tool-role message).
+                    for tc in message.tool_calls:
+                        self.messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": "(skipped — tool-call limit reached)",
+                        })
+
                     limit_msg = (
                         f"Reached the maximum of {self.MAX_TOOL_ROUNDS} tool-call rounds. "
                         "Please provide a final answer with the information gathered so far."
@@ -702,7 +831,6 @@ still start onboarding but keep it brief — you can help with their task after.
                     self.messages.append({"role": "system", "content": limit_msg})
                     if self.verbose:
                         logger.debug("Tool round limit (%d) reached, forcing text reply.", self.MAX_TOOL_ROUNDS)
-                    # One more LLM call with tool_choice="none" to force a text reply
                     try:
                         final = self.provider.chat(
                             messages=self._get_pruned_messages(),

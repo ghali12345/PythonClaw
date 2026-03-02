@@ -19,7 +19,6 @@ from . import config
 from .core.persistent_agent import PersistentAgent
 from .core.session_store import SessionStore
 
-
 # ── Provider builder ─────────────────────────────────────────────────────────
 
 def _build_provider():
@@ -172,7 +171,7 @@ def _run_foreground(args) -> None:
 
         @app.on_event("startup")
         async def _start_channels():
-            bots = await start_channels(provider, ch_to_start)
+            bots = await start_channels(provider, ch_to_start, fastapi_app=app)
             web_app_module._active_bots.extend(bots)
 
     print(f"[PythonClaw] Web dashboard: http://localhost:{port}")
@@ -188,6 +187,10 @@ def _detect_configured_channels() -> list[str]:
     dc_token = config.get_str("channels", "discord", "token", default="")
     if dc_token:
         found.append("discord")
+    wa_phone = config.get_str("channels", "whatsapp", "phoneNumberId", default="")
+    wa_token = config.get_str("channels", "whatsapp", "token", default="")
+    if wa_phone and wa_token:
+        found.append("whatsapp")
     return found
 
 
@@ -379,7 +382,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     sp_start.add_argument(
         "--channels", nargs="+",
-        choices=["telegram", "discord"],
+        choices=["telegram", "discord", "whatsapp"],
         help="Also start messaging channels",
     )
 

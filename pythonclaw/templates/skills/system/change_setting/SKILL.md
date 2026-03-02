@@ -1,65 +1,69 @@
 ---
 name: change_setting
-description: >
-  Modify pythonclaw.json configuration at runtime. Use when the user wants
-  to set API keys, tokens, change LLM provider, adjust web port, or
-  update any configuration value.
+description: "Modify pythonclaw.json configuration at runtime. Use when: user wants to set API keys, tokens, change LLM provider, adjust web port, or update any config value. NOT for: editing code, changing soul/persona files, or modifying skill files."
+metadata:
+  emoji: "⚙️"
 ---
 
-## Instructions
+# Change Setting Skill
 
-Read and modify the project configuration file `pythonclaw.json`.
+Modify `pythonclaw.json` configuration at runtime.
 
-### When to Use
+## When to Use
 
-- User says "set my API key to ...", "change provider to ...",
-  "update my token", "configure email", etc.
+✅ **USE this skill when:**
+- "Set my API key to ..."
+- "Change LLM provider to Claude"
+- "Update my Tavily/Telegram/GitHub token"
+- "Change the web port to 8080"
+- "Configure email credentials"
 - User wants to change any runtime setting without editing files manually
 
-### How to Use
+## When NOT to Use
 
-1. Read the current config:
-   ```bash
-   python {skill_path}/update_config.py --show
-   ```
+❌ **DON'T use this skill when:**
+- Changing agent personality or identity → use change_persona or change_soul
+- Editing Python code or skill files → use file edit tools
+- Adding/removing skills → use skill management or manual file edits
 
-2. Update a specific value using dot-notation for the key path:
-   ```bash
-   python {skill_path}/update_config.py --set "llm.deepseek.apiKey" "sk-xxx"
-   ```
+## Usage/Commands
 
-   Examples:
-   ```bash
-   # Change LLM provider
-   python {skill_path}/update_config.py --set "llm.provider" "claude"
+**Show current config:**
+```bash
+python {skill_path}/update_config.py --show
+```
 
-   # Set Tavily API key
-   python {skill_path}/update_config.py --set "tavily.apiKey" "tvly-xxx"
+**Update a value** (dot-notation for key path):
+```bash
+python {skill_path}/update_config.py --set "llm.deepseek.apiKey" "sk-xxx"
+```
 
-   # Set Telegram token
-   python {skill_path}/update_config.py --set "channels.telegram.token" "123:ABC"
+**Examples:**
+```bash
+# Change LLM provider
+python {skill_path}/update_config.py --set "llm.provider" "claude"
 
-   # Set GitHub token
-   python {skill_path}/update_config.py --set "skills.github.token" "ghp_xxx"
+# Set Tavily API key
+python {skill_path}/update_config.py --set "tavily.apiKey" "tvly-xxx"
 
-   # Change web port
-   python {skill_path}/update_config.py --set "web.port" "8080"
+# Set Telegram token
+python {skill_path}/update_config.py --set "channels.telegram.token" "123:ABC"
 
-   # Set email credentials
-   python {skill_path}/update_config.py --set "skills.email.senderEmail" "me@gmail.com"
-   python {skill_path}/update_config.py --set "skills.email.senderPassword" "app-password"
-   ```
+# Set GitHub token
+python {skill_path}/update_config.py --set "skills.github.token" "ghp_xxx"
 
-3. After updating, tell the user the change was saved and whether
-   a restart is needed to take effect.
+# Change web port
+python {skill_path}/update_config.py --set "web.port" "8080"
 
-### Security Notes
+# Set email credentials
+python {skill_path}/update_config.py --set "skills.email.senderEmail" "me@gmail.com"
+python {skill_path}/update_config.py --set "skills.email.senderPassword" "app-password"
+```
 
-- When displaying config, API keys / passwords / tokens are masked
+After updating, tell the user the change was saved and whether a restart is needed to take effect.
+
+## Notes
+
+- Uses bundled `update_config.py` to read and update pythonclaw.json
+- API keys, passwords, and tokens are masked when displaying config
 - Only `pythonclaw.json` is modified — no other files
-
-## Resources
-
-| File | Description |
-|------|-------------|
-| `update_config.py` | CLI tool to read and update pythonclaw.json |

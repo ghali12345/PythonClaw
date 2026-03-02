@@ -263,6 +263,47 @@ def _channel_keys(cfg: dict) -> None:
 
     print()
 
+    # WhatsApp
+    wa = channels.setdefault("whatsapp", {
+        "phoneNumberId": "", "token": "", "verifyToken": "pythonclaw_verify",
+        "callbackUrl": "", "allowedNumbers": [],
+    })
+    wa_existing_phone = wa.get("phoneNumberId", "")
+    wa_existing_token = wa.get("token", "")
+    if wa_existing_phone:
+        print(f"  WhatsApp Phone Number ID (current: {wa_existing_phone}, press Enter to keep)")
+    wa_phone = input("  WhatsApp Phone Number ID: ").strip()
+    if wa_phone:
+        wa["phoneNumberId"] = wa_phone
+        print("  → WhatsApp Phone Number ID set")
+    elif wa_existing_phone:
+        print("  → Keeping existing WhatsApp Phone Number ID")
+
+    if wa_existing_token:
+        masked = wa_existing_token[:6] + "****" if len(wa_existing_token) > 10 else "****"
+        print(f"  WhatsApp Access Token (current: {masked}, press Enter to keep)")
+    wa_token = input("  WhatsApp Access Token: ").strip()
+    if wa_token:
+        wa["token"] = wa_token
+        print("  → WhatsApp token set")
+    elif wa_existing_token:
+        print("  → Keeping existing WhatsApp token")
+
+    wa_verify = input("  WhatsApp Verify Token (default: pythonclaw_verify): ").strip()
+    if wa_verify:
+        wa["verifyToken"] = wa_verify
+
+    wa_callback = input("  WhatsApp Callback URL (e.g. https://your-domain/whatsapp/webhook): ").strip()
+    if wa_callback:
+        wa["callbackUrl"] = wa_callback
+
+    wa_allowed = input("  WhatsApp Allowed Numbers (comma-separated, or Enter to allow all): ").strip()
+    if wa_allowed:
+        wa["allowedNumbers"] = [n.strip() for n in wa_allowed.split(",") if n.strip()]
+        print(f"  → {len(wa['allowedNumbers'])} number(s) whitelisted")
+
+    print()
+
 
 def _validate_key(cfg: dict, provider: dict) -> None:
     """Make a quick test call to validate the API key."""
@@ -308,7 +349,11 @@ def _save_config(cfg: dict, config_path: str | None) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
 
     # Ensure default sections exist
-    cfg.setdefault("channels", {"telegram": {"token": "", "allowedUsers": []}, "discord": {"token": "", "allowedUsers": [], "allowedChannels": []}})
+    cfg.setdefault("channels", {
+        "telegram": {"token": "", "allowedUsers": []},
+        "discord": {"token": "", "allowedUsers": [], "allowedChannels": []},
+        "whatsapp": {"phoneNumberId": "", "token": "", "verifyToken": "pythonclaw_verify", "callbackUrl": "", "allowedNumbers": []},
+    })
     cfg.setdefault("tavily", {}).setdefault("apiKey", "")
     cfg.setdefault("deepgram", {}).setdefault("apiKey", "")
     cfg.setdefault("skillhub", {}).setdefault("apiKey", "")
@@ -317,6 +362,8 @@ def _save_config(cfg: dict, config_path: str | None) -> Path:
     cfg.setdefault("web", {"host": "0.0.0.0", "port": 7788})
     cfg.setdefault("skills", {})
     cfg.setdefault("agent", {"autoCompactThreshold": 0, "verbose": True})
+    cfg.setdefault("isolation", {"perGroup": False})
+    cfg.setdefault("concurrency", {"maxAgents": 4})
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

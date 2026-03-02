@@ -23,10 +23,11 @@ IDs to restrict access.  Leave empty (or unset) to allow all users.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from telegram import Update
+from telegram import BotCommand, ReactionTypeEmoji, Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -158,16 +159,60 @@ class TelegramBot:
             return
         sid = self._session_id(update.effective_chat.id)
         agent = self._sm.get_or_create(sid)
-        await update.message.chat.send_action("typing")
+
+        if self._sm.is_locked(sid):
+            await update.message.reply_text("⏳ Processing previous message…")
+
+        # React to the message so the user knows the bot saw it
         try:
-            response = agent.chat(user_text)
+            await update.message.set_reaction([ReactionTypeEmoji("👀")])
+        except Exception:
+            pass  # reaction API may fail on older bot API or in groups
+
+        # Keep "typing…" visible for the entire duration of processing.
+        # Telegram's typing indicator expires after ~5 s, so we resend it
+        # on a loop until the agent finishes.
+        typing_task = asyncio.create_task(
+            self._keep_typing(update.message.chat_id)
+        )
+        try:
+            async with self._sm.acquire(sid):
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(None, agent.chat, user_text)
         except Exception as exc:
             logger.exception("[Telegram] Agent.chat() raised an exception")
             response = f"Sorry, something went wrong: {exc}"
+        finally:
+            typing_task.cancel()
+
+        # Clear the "seen" reaction once we reply
+        try:
+            await update.message.set_reaction([])
+        except Exception:
+            pass
+
         for chunk in _split_message(response or "(no response)"):
             await update.message.reply_text(chunk)
 
+    async def _keep_typing(self, chat_id: int) -> None:
+        """Re-send the 'typing' chat action every 4 s until cancelled."""
+        try:
+            while True:
+                await self._app.bot.send_chat_action(chat_id=chat_id, action="typing")
+                await asyncio.sleep(4)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.debug("[Telegram] _keep_typing stopped unexpectedly", exc_info=True)
+
     # ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    _BOT_COMMANDS = [
+        BotCommand("start", "Show welcome message"),
+        BotCommand("reset", "Start a fresh session"),
+        BotCommand("status", "Show session info"),
+        BotCommand("compact", "Compact conversation history"),
+    ]
 
     def build_application(self) -> Application:
         app = Application.builder().token(self._token).build()
@@ -179,10 +224,19 @@ class TelegramBot:
         self._app = app
         return app
 
+    async def _register_commands(self) -> None:
+        """Register slash-commands with Telegram so they appear in the menu."""
+        try:
+            await self._app.bot.set_my_commands(self._BOT_COMMANDS)
+            logger.info("[Telegram] Registered %d bot commands", len(self._BOT_COMMANDS))
+        except Exception:
+            logger.warning("[Telegram] Failed to register bot commands", exc_info=True)
+
     def run_polling(self) -> None:
         """Blocking call — starts the bot using long polling (for standalone use)."""
         app = self.build_application()
         logger.info("[Telegram] Starting bot (polling mode)...")
+        app.post_init = lambda _app: self._register_commands()
         app.run_polling(drop_pending_updates=True)
 
     async def start_async(self) -> None:
@@ -191,6 +245,7 @@ class TelegramBot:
         logger.info("[Telegram] Initialising bot (async mode)...")
         await app.initialize()
         await app.start()
+        await self._register_commands()
         await app.updater.start_polling(drop_pending_updates=True)
 
     async def stop_async(self) -> None:

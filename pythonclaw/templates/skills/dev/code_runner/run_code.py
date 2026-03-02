@@ -3,10 +3,10 @@
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
-import os
 
 
 def run_code(code: str, timeout: int = 30, cwd: str | None = None) -> dict:

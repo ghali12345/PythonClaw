@@ -1,46 +1,58 @@
 ---
 name: code_runner
 description: >
-  Execute Python code snippets safely in an isolated subprocess with
-  timeout protection. Use when the user asks to run, test, or evaluate
-  Python code, calculate expressions, or prototype logic.
+  Execute Python code snippets safely in an isolated subprocess with timeout
+  protection. Use when: the user asks to run, test, or evaluate Python code,
+  calculate expressions, or prototype logic. NOT for: running shell commands,
+  executing other languages, or code that needs filesystem/network access.
+metadata:
+  emoji: "▶️"
 ---
+# Code Runner
 
-## Instructions
+## When to Use
 
-Run Python code in an isolated subprocess with stdout/stderr capture
-and timeout protection. No extra dependencies needed.
+- [ ] Run or test Python code snippets
+- [ ] Evaluate expressions (e.g., "calculate 2^100")
+- [ ] Prototype logic or verify algorithms
+- [ ] Execute user-provided Python code safely
 
-### Usage
+## When NOT to Use
+
+- [ ] Running shell commands or external programs — use `run_command` / terminal
+- [ ] Executing non-Python code (JavaScript, etc.)
+- [ ] Code requiring heavy I/O, network calls, or persistent state
+- [ ] Editing or analyzing code without running it
+
+## Setup
+
+No API keys or credentials needed. Uses the bundled `run_code.py` script.
+
+## Usage/Commands
 
 ```bash
 python {skill_path}/run_code.py [options]
 ```
 
-Input methods:
-- `--code "print(2+2)"` — inline code string
-- `--file script.py` — run a Python file
-- `stdin` — pipe code via stdin
+**Input methods:**
 
-Options:
-- `--timeout 30` — max execution time in seconds (default: 30)
-- `--format json` — output as JSON with stdout, stderr, exit code
-- `--no-capture` — stream output directly (no capture)
+| Method | Example |
+|--------|---------|
+| Inline code | `--code "print(2+2)"` |
+| From file | `--file script.py` |
+| Stdin | Pipe code via stdin |
 
-### Examples
+**Options:**
 
-- "Calculate 2^100" → `run_code.py --code "print(2**100)"`
-- "Run this Python snippet" → `run_code.py --code "import math; print(math.pi)"`
-- "Test this function" → `run_code.py --file test.py`
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--timeout N` | Max execution time (seconds) | 30 |
+| `--format json` | Output as JSON (stdout, stderr, exit_code) | text |
+| `--no-capture` | Stream output directly | off |
 
-### Security
+## Notes
 
-- Code runs in a **subprocess** (not eval/exec in the agent process)
+- Code runs in a **subprocess** (not eval/exec in the agent process) for safety
 - Timeout prevents infinite loops
 - Working directory is the project root
-
-## Resources
-
-| File | Description |
-|------|-------------|
-| `run_code.py` | Safe Python code executor |
+- For shell commands or other languages, use the terminal directly

@@ -1,4 +1,5 @@
 ---
-name: google
-description: Google Workspace skills — Gmail, Calendar, Drive, Contacts, Sheets, Docs via the gog CLI.
+name: Google
+description: Google Workspace services (Gmail, Calendar, Drive, Sheets, Docs).
+emoji: "\U0001f516"
 ---

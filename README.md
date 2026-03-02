@@ -42,9 +42,12 @@
 | 🌐 | **Web dashboard** | Browser UI for chat, config, skill catalog, identity editing, and marketplace |
 | 🎙️ | **Voice input** | Deepgram speech-to-text in the web chat |
 | ⏰ | **Cron jobs** | Schedule tasks via YAML or let the agent create its own |
-| 📡 | **Multi-channel** | CLI, Web, Telegram, Discord — same agent, different interfaces |
+| 📡 | **Multi-channel** | CLI, Web, Telegram, Discord, WhatsApp — same agent, different interfaces |
 | 🔄 | **Daemon mode** | PID-managed background process with `start` / `stop` / `status` |
 | 🧬 | **Soul + Persona** | Separate core identity from swappable role presentation |
+| 🔧 | **TOOLS.md** | Local environment notes — your cheat sheet for the agent |
+| 🔒 | **Per-group isolation** | Each chat session gets its own memory (optional) |
+| 🔁 | **Concurrency control** | Per-session locks + global semaphore prevent interleaving |
 
 ---
 
@@ -71,7 +74,7 @@ pythonclaw stop
 ```bash
 git clone https://github.com/ericwang915/PythonClaw.git
 cd PythonClaw
-pip install -e ".[all]"
+pip install -e .
 pythonclaw onboard
 ```
 
@@ -84,7 +87,7 @@ pythonclaw onboard
 | `pythonclaw onboard` | Interactive setup wizard — choose LLM provider, enter API key |
 | `pythonclaw start` | Start the agent as a background daemon |
 | `pythonclaw start -f` | Start in foreground (no daemonize) |
-| `pythonclaw start --channels telegram discord` | Start with messaging channels |
+| `pythonclaw start --channels telegram discord whatsapp` | Start with messaging channels |
 | `pythonclaw stop` | Stop the running daemon |
 | `pythonclaw status` | Show daemon status (PID, uptime, port) |
 | `pythonclaw chat` | Interactive CLI chat (foreground REPL) |
@@ -129,24 +132,25 @@ $ pythonclaw start
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│                       PythonClaw                         │
-├──────────┬───────────┬───────────┬───────────────────────┤
-│ CLI      │ Daemon    │ Sessions  │      Core             │
-│          │           │           │                       │
-│ onboard  │ start /   │ Store(MD) │ Agent                 │
-│ chat     │ stop /    │ Manager   │ ├─ Memory (Markdown)  │
-│ skill …  │ status    │           │ ├─ RAG (Hybrid)       │
-│          │           │           │ ├─ Skills (3-tier)    │
-│ Web UI ◄─┤ Channels  │           │ ├─ Compaction         │
-│ Voice In │ Telegram  │           │ ├─ Soul + Persona     │
-│          │ Discord   │           │ └─ Tool Execution     │
-├──────────┴───────────┴───────────┴───────────────────────┤
-│             LLM Provider Abstraction Layer               │
-│ DeepSeek │ Grok │ Claude │ Gemini │ Kimi │ GLM          │
-├──────────────────────────────────────────────────────────┤
-│            SkillHub Marketplace (skillhub.club)          │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                         PythonClaw                            │
+├──────────┬────────────┬───────────┬──────────────────────────┤
+│ CLI      │ Daemon     │ Sessions  │      Core                │
+│          │            │           │                          │
+│ onboard  │ start /    │ Store(MD) │ Agent                    │
+│ chat     │ stop /     │ Manager   │ ├─ Memory (Markdown)     │
+│ skill …  │ status     │ Locks +   │ ├─ RAG (Hybrid)          │
+│          │            │ Semaphore │ ├─ Skills (3-tier)        │
+│ Web UI ◄─┤ Channels   │           │ ├─ Compaction            │
+│ Voice In │ Telegram   │ Per-group │ ├─ Soul + Persona        │
+│          │ Discord    │ Isolation │ ├─ Group Context          │
+│          │ WhatsApp   │           │ └─ Tool Execution        │
+├──────────┴────────────┴───────────┴──────────────────────────┤
+│               LLM Provider Abstraction Layer                 │
+│ DeepSeek │ Grok │ Claude │ Gemini │ Kimi │ GLM              │
+├──────────────────────────────────────────────────────────────┤
+│              SkillHub Marketplace (skillhub.club)            │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -179,8 +183,11 @@ See [`pythonclaw.example.json`](pythonclaw.example.json) for the full template.
   "web":      { "host": "0.0.0.0", "port": 7788 },
   "channels": {
     "telegram": { "token": "" },
-    "discord":  { "token": "" }
-  }
+    "discord":  { "token": "" },
+    "whatsapp": { "phoneNumberId": "", "token": "", "verifyToken": "pythonclaw_verify" }
+  },
+  "isolation":   { "perGroup": false },
+  "concurrency": { "maxAgents": 4 }
 }
 ```
 
@@ -194,8 +201,8 @@ Environment variables (e.g. `DEEPSEEK_API_KEY`, `TAVILY_API_KEY`) override JSON 
 |----------|---------------|---------------|
 | **DeepSeek** | `deepseek-chat` | — |
 | **Grok (xAI)** | `grok-3` | — |
-| **Claude (Anthropic)** | `claude-sonnet-4-20250514` | `pip install pythonclaw[anthropic]` |
-| **Gemini (Google)** | `gemini-2.0-flash` | `pip install pythonclaw[gemini]` |
+| **Claude (Anthropic)** | `claude-sonnet-4-20250514` | — (included) |
+| **Gemini (Google)** | `gemini-2.0-flash` | — (included) |
 | **Kimi (Moonshot)** | `moonshot-v1-128k` | — |
 | **GLM (Zhipu)** | `glm-4-flash` | — |
 | Any OpenAI-compatible | Custom | — |
@@ -241,10 +248,27 @@ Also accessible from the web dashboard **Marketplace** tab.
 ### Markdown Memory
 
 ```
-context/memory/
+~/.pythonclaw/context/memory/
 ├── MEMORY.md           # Curated long-term memory
 └── 2026-02-23.md       # Daily append-only log
 ```
+
+When **per-group isolation** is enabled (`"isolation": { "perGroup": true }` in config),
+each session (Telegram chat, Discord channel, etc.) gets its own `memory/`, `persona/`,
+and `soul/` under `~/.pythonclaw/context/groups/<session-id>/`, while global memories
+remain accessible via read-through fallback.
+
+### TOOLS.md — Local Notes
+
+```
+~/.pythonclaw/context/tools/
+└── TOOLS.md              # Your environment-specific cheat sheet
+```
+
+Skills define *how* tools work. `TOOLS.md` stores *your* specifics — SSH hosts, device
+nicknames, project paths, preferred defaults, API endpoints. Keeping them apart means
+you can update skills without losing your notes, and share skills without leaking your
+infrastructure. Editable from the web dashboard.
 
 ### Hybrid RAG Pipeline
 
@@ -292,7 +316,7 @@ PythonClaw/
 │   │   ├── memory/            # Markdown memory
 │   │   ├── knowledge/         # Knowledge-base RAG
 │   │   └── retrieval/         # BM25 + dense + fusion + reranker
-│   ├── channels/              # Telegram, Discord
+│   ├── channels/              # Telegram, Discord, WhatsApp
 │   ├── scheduler/             # Cron jobs, heartbeat
 │   ├── web/                   # FastAPI dashboard + static assets
 │   └── templates/             # Built-in skill templates
@@ -310,7 +334,7 @@ PythonClaw/
 git clone https://github.com/ericwang915/PythonClaw.git
 cd PythonClaw
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[all]"
+pip install -e .
 pytest tests/ -v
 ```
 
@@ -332,7 +356,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 | Dashboard | Web UI | Web UI (localhost:7788) |
 | Memory | Markdown | Markdown (long-term + daily) |
 | Skills | Plugin system | Three-tier + SkillHub marketplace |
-| Channels | Discord, Telegram, WhatsApp | CLI, Web, Telegram, Discord |
+| Channels | Discord, Telegram, WhatsApp | CLI, Web, Telegram, Discord, WhatsApp |
 | Voice | — | Deepgram STT |
 | LLM Providers | OpenAI, Anthropic, Gemini | DeepSeek, Grok, Claude, Gemini, Kimi, GLM |
 | Daemon | Background process | PID-managed (`start`/`stop`/`status`) |

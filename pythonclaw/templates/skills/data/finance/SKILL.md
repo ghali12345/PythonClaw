@@ -1,23 +1,33 @@
 ---
 name: finance
-description: >
-  Fetch stock quotes, crypto prices, forex rates, and financial data.
-  Use when the user asks about any stock price, market data, company
-  financials, or cryptocurrency price.
+description: "Fetch stock quotes, crypto prices, forex rates, and financial data via Yahoo Finance. Use when: user asks about stock price, market data, company ticker, cryptocurrency price, or forex exchange rates. NOT for: options/futures data, fundamental analysis, or real-time tick-by-tick data."
+dependencies: yfinance
+metadata:
+  emoji: "📈"
 ---
 
-## Instructions
+# Finance Skill
 
-Fetch real-time financial data for stocks, crypto, and forex using
-Yahoo Finance (via the `yfinance` library).
+Fetch real-time financial data for stocks, crypto, and forex using Yahoo Finance (yfinance).
 
-### Prerequisites
+## When to Use
 
-Install the dependency: `pip install yfinance`
+✅ **USE this skill when:**
+- "What's Tesla's stock price?"
+- "Compare AAPL and MSFT"
+- "Show Bitcoin price"
+- "EUR/USD exchange rate"
+- "How is [company] stock doing?"
+- User asks about stock, crypto, or forex prices
 
-No API key needed — Yahoo Finance is free.
+## When NOT to Use
 
-### Usage
+❌ **DON'T use this skill when:**
+- Options or futures data → use specialized financial APIs
+- Fundamental analysis (P/E, ratios, financials) → use dedicated analytics tools
+- Real-time tick-by-tick data → use professional trading feeds
+
+## Usage/Commands
 
 ```bash
 python {skill_path}/fetch_quote.py SYMBOL [SYMBOL2 ...]
@@ -34,8 +44,8 @@ Options:
 - "Show Bitcoin price" → `python {skill_path}/fetch_quote.py BTC-USD`
 - "EUR/USD exchange rate" → `python {skill_path}/fetch_quote.py EURUSD=X`
 
-## Resources
+## Notes
 
-| File | Description |
-|------|-------------|
-| `fetch_quote.py` | Multi-symbol financial data fetcher |
+- Install dependency: `pip install yfinance`
+- No API key needed — Yahoo Finance is free
+- Symbols: stocks (e.g., AAPL), crypto (BTC-USD), forex (EURUSD=X)

@@ -43,10 +43,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from .sparse import BM25Retriever
 from .dense import EmbeddingRetriever
 from .fusion import reciprocal_rank_fusion
 from .reranker import LLMReranker
+from .sparse import BM25Retriever
 
 if TYPE_CHECKING:
     from ..llm.base import LLMProvider

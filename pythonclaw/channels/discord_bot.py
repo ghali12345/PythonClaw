@@ -183,9 +183,16 @@ class DiscordBot:
     async def _handle_chat(self, message: discord.Message, content: str, is_dm: bool) -> None:
         sid = self._session_id(message.author.id if is_dm else message.channel.id, is_dm)
         agent = self._sm.get_or_create(sid)
+
+        if self._sm.is_locked(sid):
+            await message.reply("Processing previous message…")
+
         async with message.channel.typing():
             try:
-                response = agent.chat(content)
+                async with self._sm.acquire(sid):
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(None, agent.chat, content)
             except Exception as exc:
                 logger.exception("[Discord] Agent.chat() raised an exception")
                 response = f"Sorry, something went wrong: {exc}"

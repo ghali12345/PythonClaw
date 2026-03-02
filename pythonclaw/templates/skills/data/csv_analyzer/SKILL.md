@@ -1,20 +1,33 @@
 ---
 name: csv_analyzer
-description: >
-  Analyze CSV and Excel files — statistics, filtering, grouping, and
-  data previews. Use when the user asks to read, analyze, query, or
-  summarize tabular data files (CSV, TSV, Excel).
+description: "Analyze CSV and Excel files — statistics, filtering, grouping, and data previews. Use when: user asks to read, analyze, query, summarize, or explore tabular data in CSV, TSV, or Excel files. NOT for: database queries, writing new files, or non-tabular formats."
+dependencies: pandas, openpyxl
+metadata:
+  emoji: "📊"
 ---
 
-## Instructions
+# CSV Analyzer Skill
 
-Analyze tabular data files using pandas.
+Analyze tabular data files (CSV, TSV, Excel) using pandas.
 
-### Prerequisites
+## When to Use
 
-Install dependency: `pip install pandas openpyxl`
+✅ **USE this skill when:**
+- "Show me what's in data.csv"
+- "First 20 rows of sales.xlsx"
+- "Statistics for revenue column"
+- "Filter rows where age > 30"
+- "Average sales by region"
+- User wants to explore, summarize, filter, or aggregate tabular data
 
-### Usage
+## When NOT to Use
+
+❌ **DON'T use this skill when:**
+- Database queries (SQL) → use database tools
+- Writing new CSV/Excel files → use code or spreadsheet tools
+- Non-tabular formats (JSON, XML, etc.) → use appropriate parsers
+
+## Usage/Commands
 
 ```bash
 python {skill_path}/analyze.py PATH [command] [options]
@@ -38,14 +51,11 @@ Options:
 
 ### Examples
 
-- "Show me what's in data.csv" → `analyze.py data.csv info`
-- "First 20 rows of sales.xlsx" → `analyze.py sales.xlsx head --rows 20`
-- "Statistics for revenue column" → `analyze.py data.csv stats --columns revenue`
-- "Filter rows where age > 30" → `analyze.py data.csv query --query "age > 30"`
-- "Average sales by region" → `analyze.py data.csv groupby --groupby region --columns sales --agg mean`
+- "Show me what's in data.csv" → `python {skill_path}/analyze.py data.csv info`
+- "First 20 rows of sales.xlsx" → `python {skill_path}/analyze.py sales.xlsx head --rows 20`
+- "Average sales by region" → `python {skill_path}/analyze.py data.csv groupby --groupby region --columns sales --agg mean`
 
-## Resources
+## Notes
 
-| File | Description |
-|------|-------------|
-| `analyze.py` | Tabular data analyzer |
+- Install dependencies: `pip install pandas openpyxl`
+- openpyxl required for Excel (.xlsx) support

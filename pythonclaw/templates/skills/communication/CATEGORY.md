@@ -1,4 +1,5 @@
 ---
-name: communication
-description: Skills for sending emails, messages, and notifications.
+name: Communication
+description: Email, messaging, and team collaboration.
+emoji: "\U0001d4e9"
 ---

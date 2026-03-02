@@ -22,16 +22,16 @@ from __future__ import annotations
 # ── Availability probes ──────────────────────────────────────────────────────
 
 try:
-    from sentence_transformers import SentenceTransformer  # type: ignore
     import numpy as np
+    from sentence_transformers import SentenceTransformer  # type: ignore
     _HAS_ST = True
 except ImportError:
     _HAS_ST = False
 
 try:
+    import numpy as np  # type: ignore
     from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore
     from sklearn.metrics.pairwise import cosine_similarity as _sklearn_cos  # type: ignore
-    import numpy as np  # type: ignore
     _HAS_SKLEARN = True
 except ImportError:
     _HAS_SKLEARN = False

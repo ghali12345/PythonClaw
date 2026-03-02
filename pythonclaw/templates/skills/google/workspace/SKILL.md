@@ -1,43 +1,51 @@
 ---
 name: google_workspace
 description: >
-  Google Workspace CLI — Gmail, Calendar, Drive, Contacts, Sheets, and Docs
-  via the gog command-line tool. Use when the user asks to send email, search
-  Gmail, check calendar events, manage Google Drive files, read or edit
-  Google Sheets, export Google Docs, or look up contacts.
+  Google Workspace via gog CLI — Gmail, Calendar, Drive, Contacts, Sheets,
+  and Docs. Use when: the user asks to send/search Gmail, check calendar,
+  manage Drive files, read or edit Sheets, export Docs, or look up contacts.
+  NOT for: Google Cloud APIs, Firebase, or services outside Workspace.
+metadata:
+  emoji: "📧"
 ---
 # Google Workspace (gog CLI)
 
-Powered by [gog](https://github.com/steipete/gogcli) — a Google Workspace
-CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.
+Powered by [gog](https://github.com/steipete/gogcli) — a Google Workspace CLI for Gmail, Calendar, Drive, Contacts, Sheets, and Docs.
 
-## Prerequisites
+## When to Use
 
-Install gog:
-```
-brew install steipete/tap/gogcli
-```
+- [ ] Search Gmail, send email, read or manage messages
+- [ ] List or create calendar events
+- [ ] Search, list, or download Drive files
+- [ ] Read or edit Google Sheets (get, append, update, clear)
+- [ ] Export or read Google Docs content
+- [ ] List or search Contacts
 
-On Linux (manual install):
-```
-curl -fsSL https://api.github.com/repos/steipete/gogcli/releases/latest \
-  | grep browser_download_url | grep linux_amd64
-# Download the tarball, extract, and install:
-# sudo install -m 0755 gog /usr/local/bin/gog
-```
+## When NOT to Use
 
-## Setup (one-time)
+- [ ] Google Cloud Platform APIs (compute, storage, etc.)
+- [ ] Firebase or other non-Workspace services
+- [ ] Tasks that don't involve Gmail, Calendar, Drive, Sheets, Docs, or Contacts
+- [ ] In-place editing of Google Docs (gog supports read/export only)
 
-1. Create OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-   (Desktop App type) and download `client_secret.json`.
-2. Run:
-```
-gog auth credentials /path/to/client_secret.json
-gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs
-```
-3. Optionally set `GOG_ACCOUNT=you@gmail.com` as an environment variable to avoid `--account` on every call.
+## Setup
 
-## Commands
+1. Install gog:
+   ```bash
+   brew install steipete/tap/gogcli
+   ```
+
+2. Create OAuth credentials at [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (Desktop App), download `client_secret.json`.
+
+3. Authenticate:
+   ```bash
+   gog auth credentials /path/to/client_secret.json
+   gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs
+   ```
+
+4. Optionally set `GOG_ACCOUNT=you@gmail.com` to skip `--account` on each call.
+
+## Usage/Commands
 
 ### Gmail
 
@@ -70,8 +78,8 @@ gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs
 |--------|---------|
 | Get data | `gog sheets get <spreadsheet_id> "Sheet1!A1:D10" --json` |
 | Metadata | `gog sheets metadata <spreadsheet_id> --json` |
-| Append rows | `gog sheets append <spreadsheet_id> "Sheet1!A:C" --values-json '[["x","y","z"]]' --insert I...
-| Update cells | `gog sheets update <spreadsheet_id> "Sheet1!A1:B2" --values-json '[["A","B"],["1","2"]]' -...
+| Append rows | `gog sheets append <spreadsheet_id> "Sheet1!A:C" --values-json '[["x","y","z"]]'` |
+| Update cells | `gog sheets update <spreadsheet_id> "Sheet1!A1:B2" --values-json '[["A","B"],["1","2"]]'` |
 | Clear range | `gog sheets clear <spreadsheet_id> "Sheet1!A2:Z"` |
 
 ### Google Docs
@@ -89,10 +97,9 @@ gog auth add you@gmail.com --services gmail,calendar,drive,contacts,sheets,docs
 | List contacts | `gog contacts list --max 20` |
 | Search | `gog contacts search "name"` |
 
-## Important Notes
+## Notes
 
-- **Always confirm** before sending emails or creating calendar events.
-- For scripting/automation, prefer `--json` and `--no-input` flags.
-- Google Docs in-place editing requires the Docs API directly (not available in gog).
-- Set `GOG_ACCOUNT` env var to skip `--account` on every command.
-- Use `gog auth list` to check configured accounts.
+- **Always confirm** before sending emails or creating calendar events
+- For automation, use `--json` and `--no-input` flags
+- Set `GOG_ACCOUNT` env var to skip `--account` on every command
+- Use `gog auth list` to check configured accounts

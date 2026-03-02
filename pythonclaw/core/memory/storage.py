@@ -28,7 +28,6 @@ import re
 from datetime import datetime
 from typing import Any, Dict
 
-
 _KEY_HEADER = re.compile(r"^## (.+)$", re.MULTILINE)
 _UPDATED_LINE = re.compile(r"^> Updated: (.+)$", re.MULTILINE)
 

@@ -1,4 +1,5 @@
 ---
-name: web
-description: Skills for web searching, data retrieval, and online information gathering.
+name: Web
+description: Web search, scraping, and content summarisation.
+emoji: "\U0001f310"
 ---

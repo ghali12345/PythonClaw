@@ -8,7 +8,7 @@ Thank you for your interest in contributing to PythonClaw! We welcome contributi
 git clone https://github.com/ericwang915/PythonClaw.git
 cd PythonClaw
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[all]"
+pip install -e .
 pytest tests/ -v
 ```
 
@@ -28,7 +28,7 @@ pytest tests/ -v
 ## Code Style
 
 - Follow PEP 8 standards.
-- Use [Black](https://github.com/psf/black) for formatting.
+- Use [Ruff](https://github.com/astral-sh/ruff) for linting: `ruff check pythonclaw/`
 - Use meaningful variable names.
 - Avoid redundant comments — code should be self-documenting.
 
@@ -49,7 +49,8 @@ pytest tests/ -v
 ## Adding New Channels
 
 1. Create a new file in `pythonclaw/channels/`.
-2. Use `SessionManager` for agent lifecycle management.
-3. Follow the `telegram_bot.py` pattern.
+2. Use `SessionManager` for agent lifecycle management and concurrency control.
+3. Follow the `telegram_bot.py` pattern (use `sm.acquire(sid)` for async handlers).
+4. Wire the channel into `server.py`, `main.py`, and `onboard.py`.
 
 Thanks for helping make PythonClaw better!

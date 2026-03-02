@@ -47,9 +47,10 @@ def _api_request(
     *,
     body: dict | None = None,
     params: dict | None = None,
+    api_key_override: str | None = None,
 ) -> dict:
     """Make an authenticated request to the SkillHub API."""
-    api_key = _api_key()
+    api_key = api_key_override or _api_key()
 
     url = f"{API_BASE}{path}"
     if params:
@@ -60,6 +61,7 @@ def _api_request(
     headers: dict[str, str] = {"Content-Type": "application/json"}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
+        headers["x-api-key"] = api_key
 
     data = json.dumps(body).encode("utf-8") if body else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
@@ -70,9 +72,35 @@ def _api_request(
     except urllib.error.HTTPError as exc:
         err_body = exc.read().decode("utf-8", errors="replace")
         logger.warning("SkillHub API error %s: %s", exc.code, err_body)
+        if exc.code == 401:
+            raise RuntimeError(
+                "SkillHub authentication failed (401). "
+                "Please check your API key at https://www.skillhub.club/account/billing"
+            ) from exc
         raise RuntimeError(f"SkillHub API error ({exc.code}): {err_body}") from exc
     except Exception as exc:
         raise RuntimeError(f"SkillHub request failed: {exc}") from exc
+
+
+def verify_key(api_key: str | None = None) -> dict:
+    """Verify a SkillHub API key by making a lightweight catalog request.
+
+    Returns ``{"ok": True, "message": ...}`` on success or
+    ``{"ok": False, "error": ...}`` on failure.
+    """
+    key = api_key or _api_key()
+    if not key:
+        return {"ok": False, "error": "No SkillHub API key configured."}
+    try:
+        result = _api_request(
+            "GET", "/skills/catalog",
+            params={"limit": "1", "sort": "score"},
+            api_key_override=key,
+        )
+        count = len(result.get("results", result.get("skills", [])))
+        return {"ok": True, "message": f"Key verified ({count} skill(s) returned)."}
+    except RuntimeError as exc:
+        return {"ok": False, "error": str(exc)}
 
 
 def search(query: str, *, limit: int = 10, category: str | None = None) -> list[dict]:

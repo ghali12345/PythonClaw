@@ -1,4 +1,5 @@
 ---
-name: text
-description: Skills for text manipulation including counting characters, reversing strings, and changing case.
+name: Text
+description: Text processing, translation, and language tools.
+emoji: "\U0001f4dd"
 ---

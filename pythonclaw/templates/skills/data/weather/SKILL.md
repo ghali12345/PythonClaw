@@ -1,17 +1,34 @@
 ---
 name: weather
-description: >
-  Get current weather and forecasts for any city or location worldwide.
-  Use when the user asks about weather, temperature, rain, wind, or
-  forecasts for any place.
+description: "Get current weather and forecasts via Open-Meteo and wttr.in. Use when: user asks about weather, temperature, rain, wind, or forecasts for any location. NOT for: historical weather data, severe weather alerts, or detailed meteorological analysis. No API key needed."
+metadata:
+  emoji: "🌤️"
 ---
 
-## Instructions
+# Weather Skill
 
-Fetch weather data using the **Open-Meteo API** — completely free,
-no API key required, and supports any location on Earth.
+Fetch current weather and forecasts via Open-Meteo (Python script) or wttr.in (curl).
 
-### Usage
+## When to Use
+
+✅ **USE this skill when:**
+- "What's the weather in Tokyo?"
+- "Will it rain in London today?"
+- "5-day forecast for New York"
+- "Temperature and wind in Paris"
+- "Is it snowing in Boston?"
+- User asks about temperature, humidity, wind, precipitation, or conditions for any place
+
+## When NOT to Use
+
+❌ **DON'T use this skill when:**
+- Historical weather data → use specialized historical APIs
+- Severe weather alerts or warnings → use official weather alert services
+- Detailed meteorological analysis → use professional weather tools
+
+## Usage/Commands
+
+### Option A — Python script (Open-Meteo)
 
 ```bash
 python {skill_path}/weather.py "City Name" [options]
@@ -22,21 +39,30 @@ Options:
 - `--format json` — output as JSON (default: human-readable text)
 - `--units imperial` — use Fahrenheit/mph (default: metric)
 
+### Option B — wttr.in (curl, no Python needed)
+
+```bash
+# Current weather for a city
+curl -s "wttr.in/CityName?format=%l%20%t%20%h%20%w%20%c"
+
+# Human-readable output (default)
+curl -s "wttr.in/CityName"
+
+# JSON output
+curl -s "wttr.in/CityName?format=j1"
+
+# 3-day forecast
+curl -s "wttr.in/CityName?2"
+```
+
 ### Examples
 
-- "What's the weather in Tokyo?" → `python {skill_path}/weather.py "Tokyo"`
+- "What's the weather in Tokyo?" → `python {skill_path}/weather.py "Tokyo"` or `curl -s wttr.in/Tokyo`
 - "5-day forecast for New York" → `python {skill_path}/weather.py "New York" --forecast 5`
-- "Is it raining in London?" → `python {skill_path}/weather.py "London"`
 - "Weather in Paris in Fahrenheit" → `python {skill_path}/weather.py "Paris" --units imperial`
 
-### How It Works
+## Notes
 
-1. Geocodes the city name to latitude/longitude via Open-Meteo's geocoding API
-2. Fetches current weather + optional forecast from Open-Meteo's weather API
-3. Returns temperature, humidity, wind speed, weather condition, and precipitation
-
-## Resources
-
-| File | Description |
-|------|-------------|
-| `weather.py` | Weather data fetcher via Open-Meteo |
+- Open-Meteo geocodes city names and returns temperature, humidity, wind, condition, and precipitation
+- wttr.in supports city names, airport codes, and lat/long in the URL path
+- Both approaches are free and require no API key

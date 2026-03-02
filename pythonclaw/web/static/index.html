@@ -253,25 +253,40 @@
               </div>
             </div>
 
-            <!-- System Status -->
+            <!-- TOOLS.md Local Notes -->
             <div class="section-card">
               <h3 class="text-[.8125rem] font-semibold text-white mb-3 flex items-center gap-2">
-                <svg class="w-4 h-4 text-accent-green" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                System Status
+                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+                TOOLS.md
+                <span id="tools-badge" class="px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-gray-800 text-gray-500">--</span>
+                <button onclick="openIdentityEditor('tools')" class="ml-auto btn-ghost !px-2 !py-1 text-[.6875rem]" title="Edit TOOLS.md">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
               </h3>
-              <div class="space-y-2.5">
-                <div class="flex items-center justify-between">
-                  <span class="text-[.75rem] text-gray-400">Web Search</span>
-                  <span id="feat-websearch" class="px-2 py-0.5 rounded-full text-[.625rem] font-medium">--</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-[.75rem] text-gray-400">Compactions</span>
-                  <span id="feat-compactions" class="text-[.75rem] text-gray-200 font-medium">0</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <span class="text-[.75rem] text-gray-400">WebSocket</span>
-                  <span id="feat-ws-status" class="px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-gray-800 text-gray-500">--</span>
-                </div>
+              <div id="tools-content" class="text-[.75rem] text-gray-400 leading-relaxed max-h-[120px] overflow-y-auto chat-scroll cursor-pointer" onclick="openIdentityEditor('tools')">
+                <span class="text-gray-600 italic">Not configured</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- System Status (compact row) -->
+          <div class="section-card mb-6">
+            <h3 class="text-[.8125rem] font-semibold text-white mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4 text-accent-green" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+              System Status
+            </h3>
+            <div class="flex flex-wrap gap-6">
+              <div class="flex items-center gap-2">
+                <span class="text-[.75rem] text-gray-400">Web Search</span>
+                <span id="feat-websearch" class="px-2 py-0.5 rounded-full text-[.625rem] font-medium">--</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[.75rem] text-gray-400">Compactions</span>
+                <span id="feat-compactions" class="text-[.75rem] text-gray-200 font-medium">0</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-[.75rem] text-gray-400">WebSocket</span>
+                <span id="feat-ws-status" class="px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-gray-800 text-gray-500">--</span>
               </div>
             </div>
           </div>
@@ -452,7 +467,11 @@
               <h3 class="cfg-title">SkillHub Marketplace</h3>
               <div>
                 <label class="block text-xs text-gray-500 mb-1.5">SkillHub API Key</label>
-                <input id="cfg-skillhub-key" type="password" placeholder="Get one at skillhub.club" class="input-field">
+                <div class="flex gap-2 items-center">
+                  <input id="cfg-skillhub-key" type="password" placeholder="Get one at skillhub.club" class="input-field flex-1">
+                  <button onclick="verifySkillhubKey()" class="btn-ghost !rounded-lg !px-3 !py-2 text-xs whitespace-nowrap">Verify</button>
+                </div>
+                <div id="cfg-skillhub-status" class="text-xs mt-1.5 hidden"></div>
               </div>
             </div>
 
@@ -523,6 +542,26 @@
                 <div>
                   <label class="block text-xs text-gray-500 mb-1.5">Discord Allowed Channels</label>
                   <input id="cfg-dc-channels" type="text" placeholder="Comma-separated channel IDs (blank = allow all)" class="input-field">
+                </div>
+                <div class="sm:col-span-2 mt-2">
+                  <label class="block text-xs text-gray-500 mb-1.5">WhatsApp Phone Number ID</label>
+                  <input id="cfg-wa-phone" type="text" placeholder="e.g. 1234567890" class="input-field">
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="block text-xs text-gray-500 mb-1.5">WhatsApp Access Token</label>
+                  <input id="cfg-wa-token" type="password" class="input-field">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5">WhatsApp Verify Token</label>
+                  <input id="cfg-wa-verify" type="text" placeholder="pythonclaw_verify" class="input-field">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5">WhatsApp Callback URL</label>
+                  <input id="cfg-wa-callback" type="text" placeholder="https://your-domain/whatsapp/webhook" class="input-field">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5">WhatsApp Allowed Numbers</label>
+                  <input id="cfg-wa-numbers" type="text" placeholder="Comma-separated numbers (blank = allow all)" class="input-field">
                 </div>
               </div>
               <p class="text-[.6875rem] text-gray-600 mt-3">Channels auto-start after saving. Tokens are stored securely.</p>
@@ -697,6 +736,20 @@ async function refreshDashboard() {
       personaBadge.className = 'ml-auto px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-amber-500/15 text-accent-amber';
     }
 
+    const toolsNotesEl = document.getElementById('tools-content');
+    const toolsBadge = document.getElementById('tools-badge');
+    if (id.toolsNotesConfigured && id.toolsNotes) {
+      const lines = id.toolsNotes.split('\n').filter(l => l.trim());
+      const preview = lines.slice(0, 6).map(l => escapeHtml(l)).join('<br>');
+      toolsNotesEl.innerHTML = preview + (lines.length > 6 ? '<br><span class="text-gray-600">...</span>' : '');
+      toolsBadge.textContent = 'Active';
+      toolsBadge.className = 'ml-auto px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-emerald-500/15 text-accent-green';
+    } else {
+      toolsNotesEl.innerHTML = '<span class="text-gray-600 italic">No local notes. Click to add environment-specific info.</span>';
+      toolsBadge.textContent = 'Not Set';
+      toolsBadge.className = 'ml-auto px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-amber-500/15 text-accent-amber';
+    }
+
     const toolsContainer = document.getElementById('tools-list');
     const toolsCount = document.getElementById('tools-count');
     if (id.tools && id.tools.length) {
@@ -757,14 +810,22 @@ async function openIdentityEditor(type) {
   const icons = {
     soul: '<svg class="w-4 h-4 text-rose-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>',
     persona: '<svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    tools: '<svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
   };
-  title.innerHTML = icons[type] + ' Edit ' + (type === 'soul' ? 'Soul' : 'Persona');
+  const labels = { soul: 'Soul', persona: 'Persona', tools: 'TOOLS.md' };
+  title.innerHTML = icons[type] + ' Edit ' + labels[type];
 
   try {
-    const res = await fetch('/api/identity');
-    _identityRawData = await res.json();
-    const content = type === 'soul' ? _identityRawData.soul : _identityRawData.persona;
-    editor.value = content || (type === 'soul' ? defaultSoulTemplate() : defaultPersonaTemplate());
+    if (type === 'tools') {
+      const res = await fetch('/api/identity/tools');
+      const data = await res.json();
+      editor.value = data.content || defaultToolsTemplate();
+    } else {
+      const res = await fetch('/api/identity');
+      _identityRawData = await res.json();
+      const content = type === 'soul' ? _identityRawData.soul : _identityRawData.persona;
+      editor.value = content || (type === 'soul' ? defaultSoulTemplate() : defaultPersonaTemplate());
+    }
   } catch (e) {
     editor.value = '';
   }
@@ -788,7 +849,7 @@ async function saveIdentity() {
   const btn = document.getElementById('identity-save-btn');
   const content = editor.value.trim();
 
-  if (!content) { statusEl.textContent = 'Content cannot be empty.'; statusEl.className = 'text-[.8125rem] text-accent-red ml-2'; return; }
+  if (!content && _identityType !== 'tools') { statusEl.textContent = 'Content cannot be empty.'; statusEl.className = 'text-[.8125rem] text-accent-red ml-2'; return; }
 
   btn.disabled = true;
   statusEl.textContent = 'Saving...';
@@ -853,6 +914,32 @@ General assistant — help with any topic.
 - Use examples when explaining complex topics`;
 }
 
+function defaultToolsTemplate() {
+  return `# TOOLS.md — Local Notes
+
+Skills define *how* tools work. This file is for *your* specifics.
+
+## What Goes Here
+
+- Device nicknames and locations
+- SSH hosts and connection details
+- API endpoints and service URLs
+- Preferred defaults (voices, languages, formats)
+- Project paths and workspace conventions
+
+## Examples
+
+### SSH Hosts
+- home-server → 192.168.1.100, user: admin
+
+### Projects
+- main repo → ~/code/myproject (Python 3.12)
+
+### Preferences
+- Code style: use type hints
+- Default language: English`;
+}
+
 // Close modal on Escape key
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeIdentityEditor();
@@ -888,28 +975,38 @@ async function loadSkills() {
       system: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 0"/>',
       text: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>',
       web: '<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>',
+      productivity: '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>',
+      media: '<polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>',
     };
     const defaultIcon = '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>';
 
+    const catMeta = data.categoryMeta || {};
     for (const [category, skills] of Object.entries(data.categories)) {
       const catKey = category.toLowerCase();
       const iconPath = categoryIcons[catKey] || defaultIcon;
+      const meta = catMeta[catKey] || {};
+      const catEmoji = meta.emoji ? meta.emoji + ' ' : '';
+      const catName = meta.name || category;
+      const catDesc = meta.description ? ` — ${escapeHtml(meta.description)}` : '';
       const section = document.createElement('div');
       section.innerHTML = `
         <div class="flex items-center gap-2 mb-3">
           <svg class="w-4 h-4 text-brand-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">${iconPath}</svg>
-          <h3 class="text-[.75rem] font-semibold text-gray-400 uppercase tracking-wider">${escapeHtml(category)}</h3>
+          <h3 class="text-[.75rem] font-semibold text-gray-400 uppercase tracking-wider">${catEmoji}${escapeHtml(catName)}</h3>
           <span class="text-[.6875rem] text-gray-600">${skills.length}</span>
+          <span class="text-[.625rem] text-gray-600 hidden sm:inline">${catDesc}</span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-2">
-          ${skills.map(s => `
+          ${skills.map(s => {
+            const emoji = s.emoji ? s.emoji + ' ' : '';
+            return `
             <div class="skill-card section-card !p-4 cursor-default">
               <div class="flex items-center gap-2 mb-2">
-                <h4 class="font-medium text-white text-[.8125rem]">${escapeHtml(s.name)}</h4>
+                <h4 class="font-medium text-white text-[.8125rem]">${emoji}${escapeHtml(s.name)}</h4>
               </div>
               <p class="text-[.75rem] text-gray-500 leading-relaxed line-clamp-2">${escapeHtml(s.description)}</p>
-            </div>
-          `).join('')}
+            </div>`;
+          }).join('')}
         </div>
       `;
       container.appendChild(section);
@@ -917,7 +1014,40 @@ async function loadSkills() {
   } catch (e) { console.error('Skills fetch:', e); }
 }
 
-// ── SkillHub Marketplace ─────────────────────────────────────────────────────
+// ── SkillHub Verify & Marketplace ────────────────────────────────────────────
+async function verifySkillhubKey() {
+  const keyField = document.getElementById('cfg-skillhub-key');
+  const statusEl = document.getElementById('cfg-skillhub-status');
+  const key = keyField.value.trim();
+  if (!key) {
+    statusEl.textContent = 'Please enter an API key first.';
+    statusEl.className = 'text-xs mt-1.5 text-yellow-400';
+    statusEl.classList.remove('hidden');
+    return;
+  }
+  statusEl.textContent = 'Verifying…';
+  statusEl.className = 'text-xs mt-1.5 text-gray-400';
+  statusEl.classList.remove('hidden');
+  try {
+    const res = await fetch('/api/skillhub/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiKey: key }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.textContent = '✓ ' + (data.message || 'Key verified successfully.');
+      statusEl.className = 'text-xs mt-1.5 text-green-400';
+    } else {
+      statusEl.textContent = '✗ ' + (data.error || 'Verification failed.');
+      statusEl.className = 'text-xs mt-1.5 text-red-400';
+    }
+  } catch (e) {
+    statusEl.textContent = '✗ Network error: ' + e.message;
+    statusEl.className = 'text-xs mt-1.5 text-red-400';
+  }
+}
+
 let _shLastResults = [];
 
 async function skillhubSearch() {
@@ -936,13 +1066,25 @@ async function skillhubSearch() {
       body: JSON.stringify({ query, limit: 20 }),
     });
     const data = await res.json();
-    if (!data.ok) { status.textContent = 'Error: ' + (data.error || 'Unknown'); return; }
+    if (!data.ok) {
+      status.innerHTML = _shErrorHtml(data.error);
+      return;
+    }
     _shLastResults = data.results || [];
     renderSkillhubResults(_shLastResults);
     status.textContent = `Found ${_shLastResults.length} skill${_shLastResults.length !== 1 ? 's' : ''}`;
   } catch (e) {
-    status.textContent = 'Request failed: ' + e.message;
+    status.innerHTML = _shErrorHtml('Network error: ' + e.message);
   }
+}
+
+function _shErrorHtml(msg) {
+  const isAuth = msg && (msg.includes('401') || msg.includes('authentication') || msg.includes('Authentication'));
+  if (isAuth) {
+    return '<span class="text-red-400">Authentication failed. Please check your SkillHub API key in the Config tab. '
+      + 'Get a key at <a href="https://www.skillhub.club/account/billing" target="_blank" class="text-brand-400 hover:underline">skillhub.club</a></span>';
+  }
+  return '<span class="text-red-400">Error: ' + _esc(msg || 'Unknown error') + '</span>';
 }
 
 async function skillhubBrowse() {
@@ -955,12 +1097,15 @@ async function skillhubBrowse() {
   try {
     const res = await fetch('/api/skillhub/browse?limit=20&sort=score');
     const data = await res.json();
-    if (!data.ok) { status.textContent = 'Error: ' + (data.error || 'Unknown'); return; }
+    if (!data.ok) {
+      status.innerHTML = _shErrorHtml(data.error);
+      return;
+    }
     _shLastResults = data.results || [];
     renderSkillhubResults(_shLastResults);
     status.textContent = `Showing top ${_shLastResults.length} skills`;
   } catch (e) {
-    status.textContent = 'Request failed: ' + e.message;
+    status.innerHTML = _shErrorHtml('Network error: ' + e.message);
   }
 }
 
@@ -1108,6 +1253,15 @@ async function loadConfig() {
     dcTokenField.placeholder = secretsSet['channels.discord.token'] ? '(token is set — leave blank to keep)' : 'Enter Discord bot token';
     document.getElementById('cfg-dc-channels').value = (dcCfg.allowedChannels || []).join(', ');
 
+    const waCfg = channels.whatsapp || {};
+    document.getElementById('cfg-wa-phone').value = waCfg.phoneNumberId || '';
+    const waTokenField = document.getElementById('cfg-wa-token');
+    waTokenField.value = '';
+    waTokenField.placeholder = secretsSet['channels.whatsapp.token'] ? '(token is set — leave blank to keep)' : 'Enter WhatsApp access token';
+    document.getElementById('cfg-wa-verify').value = waCfg.verifyToken || 'pythonclaw_verify';
+    document.getElementById('cfg-wa-callback').value = waCfg.callbackUrl || '';
+    document.getElementById('cfg-wa-numbers').value = (waCfg.allowedNumbers || []).join(', ');
+
     const web = _rawConfig.web || {};
     document.getElementById('cfg-web-host').value = web.host || '0.0.0.0';
     document.getElementById('cfg-web-port').value = web.port || 7788;
@@ -1215,6 +1369,17 @@ async function saveConfig() {
     if (dcToken) cfg.channels.discord.token = dcToken;
     const dcChannels = document.getElementById('cfg-dc-channels').value.trim();
     cfg.channels.discord.allowedChannels = dcChannels ? dcChannels.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+    if (!cfg.channels.whatsapp) cfg.channels.whatsapp = {};
+    const waPhone = document.getElementById('cfg-wa-phone').value.trim();
+    if (waPhone) cfg.channels.whatsapp.phoneNumberId = waPhone;
+    const waToken = document.getElementById('cfg-wa-token').value.trim();
+    if (waToken) cfg.channels.whatsapp.token = waToken;
+    cfg.channels.whatsapp.verifyToken = document.getElementById('cfg-wa-verify').value.trim() || 'pythonclaw_verify';
+    const waCallback = document.getElementById('cfg-wa-callback').value.trim();
+    if (waCallback) cfg.channels.whatsapp.callbackUrl = waCallback;
+    const waNumbers = document.getElementById('cfg-wa-numbers').value.trim();
+    cfg.channels.whatsapp.allowedNumbers = waNumbers ? waNumbers.split(',').map(s => s.trim()).filter(Boolean) : [];
 
     if (!cfg.web) cfg.web = {};
     cfg.web.host = document.getElementById('cfg-web-host').value.trim() || '0.0.0.0';

@@ -45,6 +45,7 @@ class PersistentAgent(Agent):
         session_id: str,
         **kwargs,
     ) -> None:
+        kwargs.setdefault("session_id", session_id)
         super().__init__(*args, **kwargs)
         self._store = store
         self._session_id = session_id
@@ -59,6 +60,11 @@ class PersistentAgent(Agent):
             return
 
         initial_system = self.messages[0]   # freshly built system prompt
+
+        # Sanitize restored messages to remove broken tool-call sequences
+        # that may have been persisted from a previous crash or error.
+        saved = self._sanitize_tool_pairs(saved)
+
         self.messages = [initial_system] + saved
 
         # Re-infer which skills were loaded so _use_skill doesn't double-inject

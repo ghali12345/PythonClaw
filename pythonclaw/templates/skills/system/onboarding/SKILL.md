@@ -1,38 +1,36 @@
 ---
 name: onboarding
-description: >
-  First-time setup wizard. Asks the user their preferred name, desired
-  agent personality, and focus area, then writes soul.md and persona.md.
-  Use when the agent starts for the first time with no soul/persona
-  configured, or when the user asks to reconfigure their agent identity.
+description: "First-time setup wizard that collects user name, agent personality, focus area, and language preference, then writes soul.md and persona.md. Use when: agent starts for the first time with no soul/persona configured, or user says reconfigure, setup, change my agent. NOT for: incremental edits to persona or soul (use change_persona or change_soul instead)."
+metadata:
+  emoji: "👋"
 ---
 
-## Instructions
+# Onboarding Skill
 
-Guide the user through initial agent setup with a friendly conversation.
+First-time setup wizard that guides users through configuring their agent identity.
 
-### When to Use
+## When to Use
 
+✅ **USE this skill when:**
 - Agent starts with empty/default soul.md and persona.md
-- User says "reconfigure", "setup", "change my agent", etc.
+- User says "reconfigure", "setup", "change my agent", "first-time setup"
+- User wants a guided flow to set name, personality, focus, and language in one go
 
-### Onboarding Flow
+## When NOT to Use
 
-Ask these questions **one at a time** in a friendly, conversational tone:
+❌ **DON'T use this skill when:**
+- User wants to tweak one aspect of persona (e.g., "be more formal") → use change_persona
+- User wants to change soul only (e.g., "call me Alex") → use change_soul
+- Agent already has configured soul and persona and user just wants small edits
+
+## Usage/Commands
+
+**Onboarding flow** — Ask these questions **one at a time** in a friendly, conversational tone:
 
 1. **Name**: "What should I call you?"
-2. **Personality**: "What kind of personality would you like me to have?
-   For example: professional & concise, friendly & casual, humorous,
-   formal, encouraging, etc."
-3. **Focus area**: "What area would you like me to focus on?
-   For example: software development, finance & investing, research,
-   daily assistant, creative writing, etc."
-4. **Language preference**: "What language do you prefer I respond in?
-   (English, Chinese, etc.)"
-
-### After Collecting Answers
-
-Use `run_command` to write the files:
+2. **Personality**: "What kind of personality would you like me to have? (e.g. professional & concise, friendly & casual, humorous, formal, encouraging)"
+3. **Focus area**: "What area would you like me to focus on? (e.g. software development, finance, research, daily assistant, creative writing)"
+4. **Language preference**: "What language do you prefer I respond in? (English, Chinese, etc.)"
 
 **Write soul.md:**
 ```bash
@@ -52,12 +50,9 @@ python {skill_path}/write_identity.py --type persona \
   --language "LANGUAGE"
 ```
 
-After writing, tell the user: "Setup complete! Your preferences have been
-saved. Use `/clear` to start a fresh conversation with your new identity,
-or just keep chatting."
+After writing, tell the user: "Setup complete! Your preferences have been saved. Use `/clear` to start a fresh conversation with your new identity, or just keep chatting."
 
-## Resources
+## Notes
 
-| File | Description |
-|------|-------------|
-| `write_identity.py` | Generates soul.md and persona.md files |
+- Uses bundled `write_identity.py` to generate soul.md and persona.md
+- Files are written to `context/soul/SOUL.md` and `context/persona/persona.md`

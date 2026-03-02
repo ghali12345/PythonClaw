@@ -23,9 +23,9 @@ from fastapi.staticfiles import StaticFiles
 
 from .. import config
 from ..core.agent import Agent
+from ..core.llm.base import LLMProvider
 from ..core.persistent_agent import PersistentAgent
 from ..core.session_store import SessionStore
-from ..core.llm.base import LLMProvider
 from ..core.skill_loader import SkillRegistry
 
 logger = logging.getLogger(__name__)
@@ -38,8 +38,18 @@ _store: SessionStore | None = None
 _start_time: float = 0.0
 _build_provider_fn = None
 _active_bots: list = []
+_chat_lock: asyncio.Lock | None = None
+_fastapi_app: FastAPI | None = None
 
 WEB_SESSION_ID = "web:dashboard"
+
+
+def _get_chat_lock() -> asyncio.Lock:
+    """Lazily create the web chat lock (must be done inside the event loop)."""
+    global _chat_lock
+    if _chat_lock is None:
+        _chat_lock = asyncio.Lock()
+    return _chat_lock
 
 
 def create_app(provider: LLMProvider | None, *, build_provider_fn=None) -> FastAPI:
@@ -51,13 +61,14 @@ def create_app(provider: LLMProvider | None, *, build_provider_fn=None) -> FastA
     build_provider_fn : callable that rebuilds the provider from config
                         (used after config save to hot-reload the provider)
     """
-    global _provider, _store, _start_time, _build_provider_fn
+    global _provider, _store, _start_time, _build_provider_fn, _fastapi_app
     _provider = provider
     _store = SessionStore()
     _start_time = time.time()
     _build_provider_fn = build_provider_fn
 
     app = FastAPI(title="PythonClaw Dashboard", docs_url=None, redoc_url=None)
+    _fastapi_app = app
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -70,10 +81,13 @@ def create_app(provider: LLMProvider | None, *, build_provider_fn=None) -> FastA
     app.add_api_route("/api/identity", _api_identity, methods=["GET"])
     app.add_api_route("/api/identity/soul", _api_save_soul, methods=["POST"])
     app.add_api_route("/api/identity/persona", _api_save_persona, methods=["POST"])
+    app.add_api_route("/api/identity/tools", _api_get_tools_notes, methods=["GET"])
+    app.add_api_route("/api/identity/tools", _api_save_tools_notes, methods=["POST"])
     app.add_api_route("/api/transcribe", _api_transcribe, methods=["POST"])
     app.add_api_route("/api/skillhub/search", _api_skillhub_search, methods=["POST"])
     app.add_api_route("/api/skillhub/browse", _api_skillhub_browse, methods=["GET"])
     app.add_api_route("/api/skillhub/install", _api_skillhub_install, methods=["POST"])
+    app.add_api_route("/api/skillhub/verify", _api_skillhub_verify, methods=["POST"])
     app.add_api_route("/api/channels", _api_channels_status, methods=["GET"])
     app.add_api_route("/api/channels/restart", _api_channels_restart, methods=["POST"])
     app.add_websocket_route("/ws/chat", _ws_chat)
@@ -265,9 +279,18 @@ async def _api_skills():
             "description": sm.description,
             "category": cat,
             "path": sm.path,
+            "emoji": sm.emoji,
         })
 
-    return {"total": len(skills_meta), "categories": categories}
+    cat_meta = {}
+    for cat_key, cat_obj in registry.categories.items():
+        cat_meta[cat_key] = {
+            "name": cat_obj.name,
+            "description": cat_obj.description,
+            "emoji": cat_obj.emoji,
+        }
+
+    return {"total": len(skills_meta), "categories": categories, "categoryMeta": cat_meta}
 
 
 async def _api_status():
@@ -317,8 +340,13 @@ async def _api_memories():
 async def _api_identity():
     """Return soul, persona content, and the full tool list."""
     from ..core.tools import (
-        PRIMITIVE_TOOLS, SKILL_TOOLS, META_SKILL_TOOLS,
-        MEMORY_TOOLS, WEB_SEARCH_TOOL, KNOWLEDGE_TOOL, CRON_TOOLS,
+        CRON_TOOLS,
+        KNOWLEDGE_TOOL,
+        MEMORY_TOOLS,
+        META_SKILL_TOOLS,
+        PRIMITIVE_TOOLS,
+        SKILL_TOOLS,
+        WEB_SEARCH_TOOL,
     )
 
     def _read_md(directory: str) -> str | None:
@@ -334,6 +362,7 @@ async def _api_identity():
     home = config.PYTHONCLAW_HOME
     soul = _read_md(str(home / "context" / "soul"))
     persona = _read_md(str(home / "context" / "persona"))
+    tools_notes = _read_md(str(home / "context" / "tools"))
 
     def _tool_info(schema: dict) -> dict:
         fn = schema.get("function", {})
@@ -359,8 +388,10 @@ async def _api_identity():
     return {
         "soul": soul,
         "persona": persona,
+        "toolsNotes": tools_notes,
         "soulConfigured": soul is not None,
         "personaConfigured": persona is not None,
+        "toolsNotesConfigured": tools_notes is not None,
         "tools": tools,
     }
 
@@ -405,10 +436,42 @@ async def _api_save_persona(request: Request):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+async def _api_get_tools_notes():
+    """Return the current TOOLS.md content."""
+    tools_dir = config.PYTHONCLAW_HOME / "context" / "tools"
+    content = None
+    if tools_dir.is_dir():
+        for f in sorted(tools_dir.iterdir()):
+            if f.suffix in (".md", ".txt") and f.is_file():
+                content = f.read_text(encoding="utf-8").strip()
+                break
+    elif tools_dir.is_file():
+        content = tools_dir.read_text(encoding="utf-8").strip()
+    return {"ok": True, "content": content}
+
+
+async def _api_save_tools_notes(request: Request):
+    """Save TOOLS.md content and reload agent identity."""
+    try:
+        body = await request.json()
+        content = body.get("content", "").strip()
+
+        tools_dir = config.PYTHONCLAW_HOME / "context" / "tools"
+        tools_dir.mkdir(parents=True, exist_ok=True)
+        tools_file = tools_dir / "TOOLS.md"
+        tools_file.write_text(content + "\n", encoding="utf-8")
+        logger.info("[Web] TOOLS.md saved to %s", tools_file)
+
+        _reload_agent_identity()
+        return {"ok": True, "path": str(tools_file)}
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+
 async def _api_transcribe(request: Request):
     """Proxy audio to Deepgram STT and return transcript."""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     dg_key = config.get("deepgram", "apiKey", env="DEEPGRAM_API_KEY")
     if not dg_key:
@@ -517,6 +580,21 @@ async def _api_skillhub_install(request: Request):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+async def _api_skillhub_verify(request: Request):
+    """Verify a SkillHub API key."""
+    from ..core import skillhub
+
+    try:
+        body = await request.json()
+        key = body.get("apiKey", "").strip()
+    except Exception:
+        key = ""
+
+    result = skillhub.verify_key(key or None)
+    status = 200 if result.get("ok") else 400
+    return JSONResponse(result, status_code=status)
+
+
 async def _maybe_start_channels() -> list[str]:
     """Start channels whose tokens are now configured but not yet running."""
     global _active_bots
@@ -530,6 +608,10 @@ async def _maybe_start_channels() -> list[str]:
     dc_token = config.get_str("channels", "discord", "token", default="")
     if dc_token:
         wanted.append("discord")
+    wa_phone = config.get_str("channels", "whatsapp", "phoneNumberId", default="")
+    wa_token = config.get_str("channels", "whatsapp", "token", default="")
+    if wa_phone and wa_token:
+        wanted.append("whatsapp")
 
     if not wanted:
         return []
@@ -541,6 +623,8 @@ async def _maybe_start_channels() -> list[str]:
             running_types.add("telegram")
         elif "discord" in cls_name:
             running_types.add("discord")
+        elif "whatsapp" in cls_name:
+            running_types.add("whatsapp")
 
     to_start = [ch for ch in wanted if ch not in running_types]
     if not to_start:
@@ -548,7 +632,7 @@ async def _maybe_start_channels() -> list[str]:
 
     try:
         from ..server import start_channels
-        new_bots = await start_channels(_provider, to_start)
+        new_bots = await start_channels(_provider, to_start, fastapi_app=_fastapi_app)
         _active_bots.extend(new_bots)
         return [ch for ch in wanted if ch in running_types or ch in to_start]
     except Exception as exc:
@@ -561,17 +645,29 @@ async def _api_channels_status():
     channels = []
     for bot in _active_bots:
         cls_name = type(bot).__name__
-        ch_type = "telegram" if "Telegram" in cls_name else "discord" if "Discord" in cls_name else cls_name
+        if "Telegram" in cls_name:
+            ch_type = "telegram"
+        elif "Discord" in cls_name:
+            ch_type = "discord"
+        elif "WhatsApp" in cls_name:
+            ch_type = "whatsapp"
+        else:
+            ch_type = cls_name
         channels.append({"type": ch_type, "running": True})
+
+    running_types = {c["type"] for c in channels}
 
     tg_token = config.get_str("channels", "telegram", "token", default="")
     dc_token = config.get_str("channels", "discord", "token", default="")
-    running_types = {c["type"] for c in channels}
+    wa_phone = config.get_str("channels", "whatsapp", "phoneNumberId", default="")
+    wa_token = config.get_str("channels", "whatsapp", "token", default="")
 
     if tg_token and "telegram" not in running_types:
         channels.append({"type": "telegram", "running": False, "tokenSet": True})
     if dc_token and "discord" not in running_types:
         channels.append({"type": "discord", "running": False, "tokenSet": True})
+    if wa_phone and wa_token and "whatsapp" not in running_types:
+        channels.append({"type": "whatsapp", "running": False, "tokenSet": True})
 
     return {"channels": channels}
 
@@ -593,7 +689,7 @@ async def _api_channels_restart(request: Request):
 
 
 def _reload_agent_identity() -> None:
-    """Reload the agent's soul/persona from disk without full reset."""
+    """Reload the agent's soul/persona/tools from disk without full reset."""
     global _agent
     if _agent is None:
         return
@@ -604,6 +700,9 @@ def _reload_agent_identity() -> None:
     )
     _agent.persona_instruction = _load_text_dir_or_file(
         str(home / "context" / "persona"), label="Persona"
+    )
+    _agent.tools_notes = _load_text_dir_or_file(
+        str(home / "context" / "tools"), label="Tools"
     )
     _agent._needs_onboarding = False
     _agent._init_system_prompt()
@@ -654,11 +753,16 @@ async def _ws_chat(websocket: WebSocket):
                 await websocket.send_json({"type": "response", "content": "Chat history cleared. Agent is still active with all skills and memory intact."})
                 continue
 
-            await websocket.send_json({"type": "thinking", "content": ""})
+            lock = _get_chat_lock()
+            if lock.locked():
+                await websocket.send_json({"type": "thinking", "content": "Processing previous message…"})
+            else:
+                await websocket.send_json({"type": "thinking", "content": ""})
 
             loop = asyncio.get_event_loop()
             try:
-                response = await loop.run_in_executor(None, agent.chat, message)
+                async with lock:
+                    response = await loop.run_in_executor(None, agent.chat, message)
                 await websocket.send_json({"type": "response", "content": response})
             except Exception as exc:
                 logger.exception("[Web] Chat error")

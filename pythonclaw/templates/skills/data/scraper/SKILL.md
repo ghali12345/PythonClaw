@@ -4,6 +4,7 @@ description: >
   Scrape and extract content from web pages. Supports extracting text,
   links, headings, and structured data. Use when the user asks to read
   a web page, extract information from a URL, or scrape website content.
+dependencies: requests, beautifulsoup4
 ---
 
 ## Instructions

@@ -11,9 +11,9 @@ Public API
 """
 
 from .agent import Agent
+from .knowledge.rag import KnowledgeRAG
 from .llm.base import LLMProvider
 from .memory.manager import MemoryManager
-from .knowledge.rag import KnowledgeRAG
 from .retrieval import HybridRetriever
 
 __all__ = [

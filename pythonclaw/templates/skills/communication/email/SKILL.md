@@ -1,19 +1,31 @@
 ---
 name: email
 description: >
-  Send emails via SMTP. Supports plain text and HTML, attachments, CC/BCC.
-  Use when the user asks to send any kind of email — notifications,
-  messages, reports, etc. Credentials are read from pythonclaw.json.
+  Send emails via SMTP. Supports plain text, HTML, attachments, CC/BCC.
+  Use when: the user asks to send an email, notification, message, or report.
+  NOT for: reading/receiving mail (use google_workspace for Gmail), sending
+  via Gmail API (use google_workspace instead).
+metadata:
+  emoji: "✉️"
 ---
+# Email (SMTP)
 
-## Instructions
+## When to Use
 
-Send emails through an SMTP server.  Credentials are stored in the
-`skills.email` section of `pythonclaw.json`.
+- [ ] Send emails through SMTP (Gmail, Outlook, custom server)
+- [ ] Notifications, messages, or reports
+- [ ] Emails with CC, BCC, or HTML body
+- [ ] When user explicitly asks to "send an email"
 
-### Prerequisites
+## When NOT to Use
 
-The user must configure these fields in `pythonclaw.json` (or the web dashboard Config page):
+- [ ] Reading or searching Gmail — use `google_workspace` with gog
+- [ ] Sending via Gmail API — use `google_workspace` gmail send
+- [ ] Tasks that don't involve sending email
+
+## Setup
+
+Configure in `pythonclaw.json` (or the Config dashboard):
 
 ```json
 "skills": {
@@ -28,7 +40,7 @@ The user must configure these fields in `pythonclaw.json` (or the web dashboard 
 
 For Gmail, use an [App Password](https://myaccount.google.com/apppasswords).
 
-### Usage
+## Usage/Commands
 
 ```bash
 python {skill_path}/send_email.py \
@@ -37,18 +49,17 @@ python {skill_path}/send_email.py \
   --body "Message body here"
 ```
 
-Optional flags:
-- `--cc "a@b.com,c@d.com"` — CC recipients
-- `--bcc "x@y.com"` — BCC recipients
-- `--html` — treat body as HTML
+| Option | Description |
+|--------|-------------|
+| `--to` | Recipient address (required) |
+| `--subject` | Subject line |
+| `--body` | Message body |
+| `--cc "a@b.com,c@d.com"` | CC recipients |
+| `--bcc "x@y.com"` | BCC recipients |
+| `--html` | Treat body as HTML |
 
-### Examples
+## Notes
 
-- "Send an email to alice@example.com saying the report is ready"
-- "Email bob@company.com with subject 'Meeting Update' and body 'Rescheduled to 3pm'"
-
-## Resources
-
-| File | Description |
-|------|-------------|
-| `send_email.py` | Generic SMTP email sender |
+- Always confirm before sending on behalf of the user
+- For Gmail, App Password is required (not regular password)
+- Credentials are read from `skills.email` in `pythonclaw.json`

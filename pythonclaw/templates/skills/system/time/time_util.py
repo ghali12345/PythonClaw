@@ -2,8 +2,8 @@
 """Get current time, convert between timezones."""
 
 import argparse
-from datetime import datetime, timezone, timedelta
 import json
+from datetime import datetime, timedelta, timezone
 
 COMMON_TIMEZONES = {
     "UTC": 0, "US/Eastern": -5, "US/Central": -6, "US/Mountain": -7,

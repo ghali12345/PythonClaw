@@ -1,7 +1,7 @@
 """
 Daemon server for PythonClaw — multi-channel mode.
 
-Supports Telegram and Discord channels, individually or combined.
+Supports Telegram, Discord, and WhatsApp channels, individually or combined.
 The web dashboard always runs; channels are started alongside it.
 """
 
@@ -23,8 +23,15 @@ logger = logging.getLogger(__name__)
 async def start_channels(
     provider: LLMProvider,
     channels: list[str],
+    fastapi_app=None,
 ) -> list:
-    """Start messaging channels (Telegram, Discord) as background tasks.
+    """Start messaging channels (Telegram, Discord, WhatsApp) as background tasks.
+
+    Parameters
+    ----------
+    provider    : LLM provider instance
+    channels    : list of channel names to start
+    fastapi_app : optional FastAPI app instance (required for WhatsApp webhook)
 
     Returns the list of successfully started bot objects.
     Safe to call during FastAPI startup — failures are logged, not raised.
@@ -69,6 +76,18 @@ async def start_channels(
             logger.info("[Server] Discord bot started.")
         except Exception as exc:
             logger.warning("[Server] Discord channel failed to start: %s", exc)
+
+    if "whatsapp" in channels:
+        try:
+            from .channels.whatsapp_bot import create_bot_from_env as create_whatsapp
+            wa_bot = create_whatsapp(session_manager)
+            if fastapi_app is not None:
+                wa_bot.mount(fastapi_app)
+            await wa_bot.start_async()
+            active_bots.append(wa_bot)
+            logger.info("[Server] WhatsApp channel started.")
+        except Exception as exc:
+            logger.warning("[Server] WhatsApp channel failed to start: %s", exc)
 
     if active_bots:
         scheduler.start()

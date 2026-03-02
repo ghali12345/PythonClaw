@@ -7,6 +7,7 @@ import os
 import re
 import sys
 
+
 def _config_file() -> str:
     home = os.path.expanduser("~/.pythonclaw")
     for p in [os.path.join(home, "pythonclaw.json"), "pythonclaw.json"]:

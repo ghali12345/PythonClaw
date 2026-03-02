@@ -4,8 +4,8 @@
 import argparse
 import json
 import sys
-import urllib.request
 import urllib.parse
+import urllib.request
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 WEATHER_URL = "https://api.open-meteo.com/v1/forecast"
