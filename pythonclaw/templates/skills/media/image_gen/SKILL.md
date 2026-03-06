@@ -3,7 +3,7 @@ name: image_gen
 description: "Generate images via OpenAI Images API (DALL-E 3, GPT-image). Use when: user asks to generate, create, draw, or design an image, illustration, logo, or artwork. NOT for: editing existing images, image format conversion, or screenshots."
 dependencies: requests
 metadata:
-  emoji: "\U0001f5bc\ufe0f"
+  emoji: "🖼️"
 ---
 
 # Image Generation

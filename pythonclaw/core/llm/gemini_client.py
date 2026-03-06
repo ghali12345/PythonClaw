@@ -17,6 +17,8 @@ from .response import MockChoice, MockFunction, MockMessage, MockResponse, MockT
 
 
 class GeminiProvider(LLMProvider):
+    supports_images = True
+
     def __init__(self, api_key: str, model_name: str = "gemini-2.0-flash-exp"):
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model_name)
@@ -50,7 +52,13 @@ class GeminiProvider(LLMProvider):
                 )
 
             elif role == "user":
-                gemini_history.append({"role": "user", "parts": [content]})
+                if isinstance(content, list):
+                    gemini_history.append({
+                        "role": "user",
+                        "parts": self._convert_user_parts(content),
+                    })
+                else:
+                    gemini_history.append({"role": "user", "parts": [content]})
 
             elif role == "assistant":
                 parts: list = []
@@ -126,6 +134,49 @@ class GeminiProvider(LLMProvider):
                 tool_calls=tool_calls or None,
             ))
         ])
+
+    @staticmethod
+    def _convert_user_parts(parts: list[dict]) -> list:
+        """Convert OpenAI-style content array to Gemini parts."""
+        import base64 as _b64
+        import re as _re
+
+        out: list = []
+        for p in parts:
+            if p.get("type") == "text":
+                out.append(p["text"])
+            elif p.get("type") == "image_url":
+                url = p["image_url"]["url"]
+                m = _re.match(
+                    r"data:(image/\w+);base64,(.+)", url, _re.DOTALL
+                )
+                if m:
+                    out.append({
+                        "inline_data": {
+                            "mime_type": m.group(1),
+                            "data": m.group(2),
+                        }
+                    })
+                else:
+                    try:
+                        import urllib.request
+
+                        resp = urllib.request.urlopen(url, timeout=15)
+                        data = resp.read()
+                        ct = resp.headers.get(
+                            "Content-Type", "image/jpeg"
+                        ).split(";")[0]
+                        out.append({
+                            "inline_data": {
+                                "mime_type": ct,
+                                "data": _b64.b64encode(data).decode(),
+                            }
+                        })
+                    except Exception:
+                        out.append(f"[image: {url}]")
+            else:
+                out.append(str(p))
+        return out or [""]
 
     @staticmethod
     def _find_tool_name(messages: list[dict], tool_call_id: str) -> str:

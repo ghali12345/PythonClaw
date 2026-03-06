@@ -3,7 +3,7 @@ name: trello
 description: "Manage Trello boards, lists, and cards via the Trello REST API. Use when: user asks to create/move/list Trello cards, check board status, manage task lists, or organise project work in Trello. NOT for: Notion databases (use notion skill), GitHub issues (use github skill), or local task lists."
 dependencies: requests
 metadata:
-  emoji: "\U0001f4cb"
+  emoji: "📋"
 ---
 
 # Trello

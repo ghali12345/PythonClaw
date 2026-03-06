@@ -291,6 +291,21 @@
             </div>
           </div>
 
+          <!-- INDEX.md — Curated System Info -->
+          <div class="section-card mb-6">
+            <h3 class="text-[.8125rem] font-semibold text-white mb-3 flex items-center gap-2">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+              INDEX.md
+              <span id="index-badge" class="px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-gray-800 text-gray-500">--</span>
+              <button onclick="openIdentityEditor('index')" class="ml-auto btn-ghost !px-2 !py-1 text-[.6875rem]" title="Edit INDEX.md">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+            </h3>
+            <div id="index-content" class="text-[.75rem] text-gray-400 leading-relaxed max-h-[120px] overflow-y-auto chat-scroll cursor-pointer" onclick="openIdentityEditor('index')">
+              <span class="text-gray-600 italic">Not configured. Click to add system info, API notes, environment details.</span>
+            </div>
+          </div>
+
           <!-- Memory -->
           <div class="section-card mb-6">
             <h3 class="text-[.8125rem] font-semibold text-white mb-3 flex items-center gap-2">
@@ -354,10 +369,21 @@
             </div>
           </div>
           <div class="border-t border-surface-700/50 px-6 py-4 bg-surface-900/60 backdrop-blur-sm shrink-0">
+            <div id="image-preview" class="hidden max-w-[900px] mx-auto mb-2 flex items-center gap-2">
+              <img id="image-preview-img" class="h-16 rounded-lg border border-surface-700" alt="preview">
+              <button onclick="clearImageAttachment()" class="text-gray-500 hover:text-white text-xs">&times; Remove</button>
+            </div>
             <form id="chat-form" class="flex gap-3 max-w-[900px] mx-auto items-center">
               <input id="chat-input" type="text" placeholder="Type a message..."
                 class="input-field flex-1 !rounded-xl !py-3 !px-4 !bg-surface-950 !text-[.8125rem]"
                 autocomplete="off">
+              <input type="file" id="image-upload" accept="image/*" class="hidden" onchange="handleImageSelect(event)">
+              <button type="button" onclick="document.getElementById('image-upload').click()" title="Attach image"
+                class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-400 hover:text-white transition-colors shrink-0">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                </svg>
+              </button>
               <button type="button" id="mic-btn" onclick="toggleMic()" title="Voice input"
                 class="w-10 h-10 flex items-center justify-center rounded-xl bg-surface-800 hover:bg-surface-700 text-gray-400 hover:text-white transition-colors shrink-0">
                 <svg id="mic-icon" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -390,8 +416,8 @@
         <div id="tab-marketplace" class="tab-content hidden p-8 fade-in max-w-[1200px]">
           <div class="flex items-center justify-between mb-6">
             <div>
-              <h2 class="text-xl font-bold text-white tracking-tight">SkillHub Marketplace</h2>
-              <p class="text-sm text-gray-500 mt-1">Search and install community skills from <a href="https://www.skillhub.club" target="_blank" class="text-brand-400 hover:underline">skillhub.club</a></p>
+              <h2 class="text-xl font-bold text-white tracking-tight">ClawHub Marketplace</h2>
+              <p class="text-sm text-gray-500 mt-1">Search and install community skills from <a href="https://clawhub.com" target="_blank" class="text-brand-400 hover:underline">ClawHub</a> — 13K+ free skills, no API key required</p>
             </div>
           </div>
 
@@ -399,12 +425,18 @@
           <div class="flex gap-3 mb-6">
             <input id="sh-search-input" type="text" placeholder="Search skills… (e.g. database, frontend, debugging)"
               class="input-field flex-1 !rounded-xl !py-3 !px-4 !bg-surface-950 text-sm"
-              onkeydown="if(event.key==='Enter'){event.preventDefault();skillhubSearch();}">
-            <button onclick="skillhubSearch()" class="btn-primary !rounded-xl !px-6 !py-3 text-sm font-medium">
+              onkeydown="if(event.key==='Enter'){event.preventDefault();marketplaceSearch();}">
+            <button onclick="marketplaceSearch()" class="btn-primary !rounded-xl !px-6 !py-3 text-sm font-medium">
               <svg class="w-4 h-4 inline mr-1.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               Search
             </button>
-            <button onclick="skillhubBrowse()" class="btn-ghost !rounded-xl !px-5 !py-3 text-sm">Browse Top</button>
+            <button onclick="marketplaceBrowse()" class="btn-ghost !rounded-xl !px-5 !py-3 text-sm">Browse Top</button>
+            <select id="sh-sort" class="btn-ghost !rounded-xl !px-3 !py-3 text-sm" onchange="marketplaceBrowse()">
+              <option value="score">Top Downloads</option>
+              <option value="stars">Most Stars</option>
+              <option value="newest">Newest</option>
+              <option value="certified">Certified</option>
+            </select>
           </div>
 
           <!-- Results -->
@@ -462,17 +494,10 @@
               </div>
             </div>
 
-            <!-- SkillHub -->
+            <!-- ClawHub -->
             <div class="cfg-section">
-              <h3 class="cfg-title">SkillHub Marketplace</h3>
-              <div>
-                <label class="block text-xs text-gray-500 mb-1.5">SkillHub API Key</label>
-                <div class="flex gap-2 items-center">
-                  <input id="cfg-skillhub-key" type="password" placeholder="Get one at skillhub.club" class="input-field flex-1">
-                  <button onclick="verifySkillhubKey()" class="btn-ghost !rounded-lg !px-3 !py-2 text-xs whitespace-nowrap">Verify</button>
-                </div>
-                <div id="cfg-skillhub-status" class="text-xs mt-1.5 hidden"></div>
-              </div>
+              <h3 class="cfg-title">ClawHub Marketplace</h3>
+              <p class="text-xs text-gray-500">Free & open — no API key required. <a href="https://clawhub.com" target="_blank" class="text-brand-400 hover:underline">clawhub.com</a></p>
             </div>
 
             <!-- Deepgram -->
@@ -535,6 +560,12 @@
                   <label class="block text-xs text-gray-500 mb-1.5">Telegram Allowed Users</label>
                   <input id="cfg-tg-users" type="text" placeholder="Comma-separated user IDs (blank = allow all)" class="input-field">
                 </div>
+                <div>
+                  <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer mt-2">
+                    <input type="checkbox" id="cfg-tg-mention" class="rounded">
+                    Require @mention in groups
+                  </label>
+                </div>
                 <div class="sm:col-span-2 mt-2">
                   <label class="block text-xs text-gray-500 mb-1.5">Discord Bot Token</label>
                   <input id="cfg-dc-token" type="password" class="input-field">
@@ -542,6 +573,12 @@
                 <div>
                   <label class="block text-xs text-gray-500 mb-1.5">Discord Allowed Channels</label>
                   <input id="cfg-dc-channels" type="text" placeholder="Comma-separated channel IDs (blank = allow all)" class="input-field">
+                </div>
+                <div>
+                  <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer mt-2">
+                    <input type="checkbox" id="cfg-dc-mention" class="rounded">
+                    Require @mention in servers
+                  </label>
                 </div>
                 <div class="sm:col-span-2 mt-2">
                   <label class="block text-xs text-gray-500 mb-1.5">WhatsApp Phone Number ID</label>
@@ -563,8 +600,26 @@
                   <label class="block text-xs text-gray-500 mb-1.5">WhatsApp Allowed Numbers</label>
                   <input id="cfg-wa-numbers" type="text" placeholder="Comma-separated numbers (blank = allow all)" class="input-field">
                 </div>
+                <div>
+                  <label class="flex items-center gap-2 text-xs text-gray-400 cursor-pointer mt-2">
+                    <input type="checkbox" id="cfg-wa-mention" class="rounded">
+                    Require @mention in groups
+                  </label>
+                </div>
               </div>
               <p class="text-[.6875rem] text-gray-600 mt-3">Channels auto-start after saving. Tokens are stored securely.</p>
+            </div>
+
+            <!-- Agent Settings -->
+            <div class="cfg-section">
+              <h3 class="cfg-title">Agent</h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5">Max Parallel Skills</label>
+                  <input id="cfg-max-skills" type="number" min="1" max="10" placeholder="5" class="input-field">
+                  <p class="text-[.625rem] text-gray-600 mt-1">Max skills the LLM can activate simultaneously (1-10)</p>
+                </div>
+              </div>
             </div>
 
             <!-- Web Dashboard -->
@@ -646,12 +701,12 @@ function switchTab(tab) {
   const nav = document.getElementById('nav-' + tab);
   if (nav) nav.classList.add('active');
 
-  const titles = { dashboard:'Dashboard', chat:'Chat', skills:'Skill Catalog', marketplace:'SkillHub Marketplace', config:'Configuration' };
+  const titles = { dashboard:'Dashboard', chat:'Chat', skills:'Skill Catalog', marketplace:'ClawHub Marketplace', config:'Configuration' };
   document.getElementById('page-title').textContent = titles[tab] || tab;
 
   if (tab === 'dashboard') refreshDashboard();
   if (tab === 'skills') loadSkills();
-  if (tab === 'marketplace') skillhubBrowse();
+  if (tab === 'marketplace') marketplaceBrowse();
   if (tab === 'config') loadConfig();
   if (tab === 'chat') {
     document.getElementById('chat-input').focus();
@@ -750,6 +805,20 @@ async function refreshDashboard() {
       toolsBadge.className = 'ml-auto px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-amber-500/15 text-accent-amber';
     }
 
+    const indexEl = document.getElementById('index-content');
+    const indexBadge = document.getElementById('index-badge');
+    if (id.indexConfigured && id.indexContent) {
+      const lines = id.indexContent.split('\n').filter(l => l.trim());
+      const preview = lines.slice(0, 6).map(l => escapeHtml(l)).join('<br>');
+      indexEl.innerHTML = preview + (lines.length > 6 ? '<br><span class="text-gray-600">...</span>' : '');
+      indexBadge.textContent = 'Active';
+      indexBadge.className = 'px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-indigo-500/15 text-indigo-400';
+    } else {
+      indexEl.innerHTML = '<span class="text-gray-600 italic">Not configured. Click to add system info, API notes, environment details.</span>';
+      indexBadge.textContent = 'Not Set';
+      indexBadge.className = 'px-2 py-0.5 rounded-full text-[.625rem] font-medium bg-amber-500/15 text-accent-amber';
+    }
+
     const toolsContainer = document.getElementById('tools-list');
     const toolsCount = document.getElementById('tools-count');
     if (id.tools && id.tools.length) {
@@ -812,14 +881,19 @@ async function openIdentityEditor(type) {
     persona: '<svg class="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
     tools: '<svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>',
   };
-  const labels = { soul: 'Soul', persona: 'Persona', tools: 'TOOLS.md' };
-  title.innerHTML = icons[type] + ' Edit ' + labels[type];
+  const labels = { soul: 'Soul', persona: 'Persona', tools: 'TOOLS.md', index: 'INDEX.md' };
+  const icons2 = { ...icons, index: '<svg class="w-4 h-4 text-indigo-400 inline" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>' };
+  title.innerHTML = (icons2[type] || icons[type] || '') + ' Edit ' + labels[type];
 
   try {
     if (type === 'tools') {
       const res = await fetch('/api/identity/tools');
       const data = await res.json();
       editor.value = data.content || defaultToolsTemplate();
+    } else if (type === 'index') {
+      const res = await fetch('/api/memory/index');
+      const data = await res.json();
+      editor.value = data.content || defaultIndexTemplate();
     } else {
       const res = await fetch('/api/identity');
       _identityRawData = await res.json();
@@ -849,14 +923,15 @@ async function saveIdentity() {
   const btn = document.getElementById('identity-save-btn');
   const content = editor.value.trim();
 
-  if (!content && _identityType !== 'tools') { statusEl.textContent = 'Content cannot be empty.'; statusEl.className = 'text-[.8125rem] text-accent-red ml-2'; return; }
+  if (!content && !['tools', 'index'].includes(_identityType)) { statusEl.textContent = 'Content cannot be empty.'; statusEl.className = 'text-[.8125rem] text-accent-red ml-2'; return; }
 
   btn.disabled = true;
   statusEl.textContent = 'Saving...';
   statusEl.className = 'text-[.8125rem] text-gray-500 ml-2';
 
   try {
-    const res = await fetch('/api/identity/' + _identityType, {
+    const endpoint = _identityType === 'index' ? '/api/memory/index' : '/api/identity/' + _identityType;
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
@@ -940,6 +1015,26 @@ Skills define *how* tools work. This file is for *your* specifics.
 - Default language: English`;
 }
 
+function defaultIndexTemplate() {
+  return `# INDEX.md — System Information
+
+Curated reference info that the bot always loads at session start.
+Edit this to store common configuration, environment details, and notes.
+
+## User Environment
+- OS: (your OS here)
+- Default language: English
+
+## API Services
+- (list your API endpoints, tokens, or service notes here)
+
+## Common References
+- (project paths, server addresses, important URLs)
+
+## Bot Configuration Notes
+- (any agent behavior preferences, response style notes)`;
+}
+
 // Close modal on Escape key
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeIdentityEditor();
@@ -1014,102 +1109,64 @@ async function loadSkills() {
   } catch (e) { console.error('Skills fetch:', e); }
 }
 
-// ── SkillHub Verify & Marketplace ────────────────────────────────────────────
-async function verifySkillhubKey() {
-  const keyField = document.getElementById('cfg-skillhub-key');
-  const statusEl = document.getElementById('cfg-skillhub-status');
-  const key = keyField.value.trim();
-  if (!key) {
-    statusEl.textContent = 'Please enter an API key first.';
-    statusEl.className = 'text-xs mt-1.5 text-yellow-400';
-    statusEl.classList.remove('hidden');
-    return;
-  }
-  statusEl.textContent = 'Verifying…';
-  statusEl.className = 'text-xs mt-1.5 text-gray-400';
-  statusEl.classList.remove('hidden');
-  try {
-    const res = await fetch('/api/skillhub/verify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiKey: key }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      statusEl.textContent = '✓ ' + (data.message || 'Key verified successfully.');
-      statusEl.className = 'text-xs mt-1.5 text-green-400';
-    } else {
-      statusEl.textContent = '✗ ' + (data.error || 'Verification failed.');
-      statusEl.className = 'text-xs mt-1.5 text-red-400';
-    }
-  } catch (e) {
-    statusEl.textContent = '✗ Network error: ' + e.message;
-    statusEl.className = 'text-xs mt-1.5 text-red-400';
-  }
-}
-
+// ── ClawHub Marketplace ──────────────────────────────────────────────────────
 let _shLastResults = [];
 
-async function skillhubSearch() {
+async function marketplaceSearch() {
   const query = document.getElementById('sh-search-input').value.trim();
   if (!query) return;
   const status = document.getElementById('sh-status');
   const container = document.getElementById('sh-results');
-  status.textContent = 'Searching…';
+  status.textContent = 'Searching ClawHub…';
   status.classList.remove('hidden');
   container.innerHTML = '';
 
   try {
-    const res = await fetch('/api/skillhub/search', {
+    const res = await fetch('/api/marketplace/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, limit: 20 }),
     });
     const data = await res.json();
     if (!data.ok) {
-      status.innerHTML = _shErrorHtml(data.error);
+      status.innerHTML = '<span class="text-red-400">Error: ' + _esc(data.error || 'Unknown') + '</span>';
       return;
     }
     _shLastResults = data.results || [];
-    renderSkillhubResults(_shLastResults);
+    renderMarketplaceResults(_shLastResults);
     status.textContent = `Found ${_shLastResults.length} skill${_shLastResults.length !== 1 ? 's' : ''}`;
   } catch (e) {
-    status.innerHTML = _shErrorHtml('Network error: ' + e.message);
+    status.innerHTML = '<span class="text-red-400">Network error: ' + _esc(e.message) + '</span>';
   }
 }
 
-function _shErrorHtml(msg) {
-  const isAuth = msg && (msg.includes('401') || msg.includes('authentication') || msg.includes('Authentication'));
-  if (isAuth) {
-    return '<span class="text-red-400">Authentication failed. Please check your SkillHub API key in the Config tab. '
-      + 'Get a key at <a href="https://www.skillhub.club/account/billing" target="_blank" class="text-brand-400 hover:underline">skillhub.club</a></span>';
-  }
-  return '<span class="text-red-400">Error: ' + _esc(msg || 'Unknown error') + '</span>';
-}
-
-async function skillhubBrowse() {
+async function marketplaceBrowse() {
   const status = document.getElementById('sh-status');
   const container = document.getElementById('sh-results');
-  status.textContent = 'Loading top skills…';
+  const sort = document.getElementById('sh-sort')?.value || 'score';
+  const labels = { score: 'top downloaded', stars: 'most starred', newest: 'newest', certified: 'certified' };
+  status.textContent = `Loading ${labels[sort] || 'top'} skills…`;
   status.classList.remove('hidden');
   container.innerHTML = '';
 
   try {
-    const res = await fetch('/api/skillhub/browse?limit=20&sort=score');
+    const res = await fetch(`/api/marketplace/browse?limit=20&sort=${sort}`);
     const data = await res.json();
     if (!data.ok) {
-      status.innerHTML = _shErrorHtml(data.error);
+      status.innerHTML = '<span class="text-red-400">Error: ' + _esc(data.error || 'Unknown') + '</span>';
       return;
     }
     _shLastResults = data.results || [];
-    renderSkillhubResults(_shLastResults);
-    status.textContent = `Showing top ${_shLastResults.length} skills`;
+    renderMarketplaceResults(_shLastResults);
+    status.textContent = `Showing ${_shLastResults.length} ${labels[sort] || ''} skills`;
   } catch (e) {
-    status.innerHTML = _shErrorHtml('Network error: ' + e.message);
+    status.innerHTML = '<span class="text-red-400">Network error: ' + _esc(e.message) + '</span>';
   }
 }
 
-function renderSkillhubResults(results) {
+function _fmtNum(n) { return typeof n === 'number' ? n.toLocaleString() : String(n || ''); }
+
+function renderMarketplaceResults(results) {
   const container = document.getElementById('sh-results');
   container.innerHTML = '';
   if (!results.length) {
@@ -1117,13 +1174,13 @@ function renderSkillhubResults(results) {
     return;
   }
   for (const r of results) {
-    const name = r.name || r.title || '???';
-    const desc = (r.description || '').substring(0, 120);
-    const sid = r.id || r.slug || '';
-    const score = r.score || r.ai_score || '';
-    const stars = r.stars || '';
-    const author = r.author || r.owner || '';
-    const category = r.category || '';
+    const name = r.name || '???';
+    const desc = (r.description || '').substring(0, 140);
+    const sid = r.id || '';
+    const downloads = r.downloads || 0;
+    const stars = r.stars || 0;
+    const author = r.author || '';
+    const certified = r.certified || false;
 
     const card = document.createElement('div');
     card.className = 'bg-surface-800/60 border border-surface-700/50 rounded-xl p-5 hover:border-brand-500/40 transition-colors';
@@ -1131,17 +1188,17 @@ function renderSkillhubResults(results) {
       <div class="flex items-start justify-between gap-3 mb-2">
         <h3 class="font-semibold text-white text-sm">${_esc(name)}</h3>
         <div class="flex items-center gap-2 shrink-0">
-          ${score ? `<span class="text-[.65rem] px-1.5 py-0.5 bg-brand-500/20 text-brand-400 rounded font-medium">${_esc(String(score))}</span>` : ''}
-          ${stars ? `<span class="text-[.65rem] text-yellow-400">★${_esc(String(stars))}</span>` : ''}
+          ${certified ? '<span class="text-[.65rem] px-1.5 py-0.5 bg-green-500/20 text-green-400 rounded font-medium">✓ Certified</span>' : ''}
         </div>
       </div>
       <p class="text-xs text-gray-400 mb-3 line-clamp-2">${_esc(desc)}</p>
       <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2 text-[.65rem] text-gray-500">
-          ${author ? `<span>by ${_esc(author)}</span>` : ''}
-          ${category ? `<span class="px-1.5 py-0.5 bg-surface-700 rounded">${_esc(category)}</span>` : ''}
+        <div class="flex items-center gap-3 text-[.65rem] text-gray-500">
+          ${author ? `<span>@${_esc(author)}</span>` : ''}
+          ${downloads ? `<span>↓ ${_fmtNum(downloads)}</span>` : ''}
+          ${stars ? `<span class="text-yellow-400">★ ${_fmtNum(stars)}</span>` : ''}
         </div>
-        ${sid ? `<button onclick="skillhubInstall('${_esc(sid)}')" class="text-xs px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 font-medium transition-colors">Install</button>` : ''}
+        ${sid ? `<button onclick="marketplaceInstall('${_esc(sid)}')" class="text-xs px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 font-medium transition-colors">Install</button>` : ''}
       </div>
       ${sid ? `<div class="mt-2 text-[.6rem] text-gray-600 truncate">ID: ${_esc(sid)}</div>` : ''}
     `;
@@ -1151,26 +1208,34 @@ function renderSkillhubResults(results) {
 
 function _esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
-async function skillhubInstall(skillId) {
-  if (!confirm(`Install skill "${skillId}" from SkillHub?`)) return;
+async function marketplaceInstall(skillId) {
+  if (!confirm(`Install skill "${skillId}" from ClawHub?`)) return;
   const status = document.getElementById('sh-status');
   status.textContent = `Installing ${skillId}…`;
   status.classList.remove('hidden');
 
+  const btn = document.querySelector(`button[onclick="marketplaceInstall('${skillId}')"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Installing…'; btn.classList.add('opacity-50'); }
+
   try {
-    const res = await fetch('/api/skillhub/install', {
+    const res = await fetch('/api/marketplace/install', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ skill_id: skillId }),
     });
     const data = await res.json();
     if (data.ok) {
-      status.innerHTML = `<span class="text-green-400">✓ Installed:</span> ${_esc(data.path || skillId)}`;
+      const name = data.skill_name || skillId;
+      status.innerHTML = `<span class="text-green-400">✓ Installed &amp; ready!</span> Use in chat: <code class="bg-surface-700 px-1.5 py-0.5 rounded text-brand-400">use_skill("${_esc(name)}")</code>`
+        + (data.skill_count ? ` <span class="text-gray-500 ml-2">(${data.skill_count} skills total)</span>` : '');
+      if (btn) { btn.textContent = '✓ Installed'; btn.classList.replace('bg-brand-500/20', 'bg-green-500/20'); btn.classList.replace('text-brand-400', 'text-green-400'); }
     } else {
       status.innerHTML = `<span class="text-red-400">✗ Error:</span> ${_esc(data.error || 'Unknown error')}`;
+      if (btn) { btn.disabled = false; btn.textContent = 'Install'; btn.classList.remove('opacity-50'); }
     }
   } catch (e) {
     status.innerHTML = `<span class="text-red-400">✗ Failed:</span> ${_esc(e.message)}`;
+    if (btn) { btn.disabled = false; btn.textContent = 'Install'; btn.classList.remove('opacity-50'); }
   }
 }
 
@@ -1207,7 +1272,14 @@ async function loadConfig() {
     const apiKeyField = document.getElementById('cfg-apikey');
     const apiKeyPath = 'llm.' + providerName + '.apiKey';
     apiKeyField.value = '';
-    apiKeyField.placeholder = secretsSet[apiKeyPath] ? '(key is set — leave blank to keep)' : 'Enter your API key';
+    const isClaudeProvider = providerName === 'claude' || providerName === 'anthropic';
+    if (secretsSet[apiKeyPath]) {
+      apiKeyField.placeholder = '(key is set — leave blank to keep)';
+    } else if (isClaudeProvider) {
+      apiKeyField.placeholder = 'API key (sk-ant-...) or setup-token';
+    } else {
+      apiKeyField.placeholder = 'Enter your API key';
+    }
 
     document.getElementById('cfg-model').value = providerCfg.model || '';
     document.getElementById('cfg-baseurl').value = providerCfg.baseUrl || '';
@@ -1215,10 +1287,6 @@ async function loadConfig() {
     const tavilyField = document.getElementById('cfg-tavily-key');
     tavilyField.value = '';
     tavilyField.placeholder = secretsSet['tavily.apiKey'] ? '(key is set — leave blank to keep)' : 'Get one at app.tavily.com';
-
-    const shField = document.getElementById('cfg-skillhub-key');
-    shField.value = '';
-    shField.placeholder = secretsSet['skillhub.apiKey'] ? '(key is set — leave blank to keep)' : 'Get one at skillhub.club';
 
     const dgField = document.getElementById('cfg-deepgram-key');
     dgField.value = '';
@@ -1246,12 +1314,14 @@ async function loadConfig() {
     tgTokenField.value = '';
     tgTokenField.placeholder = secretsSet['channels.telegram.token'] ? '(token is set — leave blank to keep)' : 'Enter Telegram bot token';
     document.getElementById('cfg-tg-users').value = (tgCfg.allowedUsers || []).join(', ');
+    document.getElementById('cfg-tg-mention').checked = !!tgCfg.requireMention;
 
     const dcCfg = channels.discord || {};
     const dcTokenField = document.getElementById('cfg-dc-token');
     dcTokenField.value = '';
     dcTokenField.placeholder = secretsSet['channels.discord.token'] ? '(token is set — leave blank to keep)' : 'Enter Discord bot token';
     document.getElementById('cfg-dc-channels').value = (dcCfg.allowedChannels || []).join(', ');
+    document.getElementById('cfg-dc-mention').checked = !!dcCfg.requireMention;
 
     const waCfg = channels.whatsapp || {};
     document.getElementById('cfg-wa-phone').value = waCfg.phoneNumberId || '';
@@ -1261,6 +1331,10 @@ async function loadConfig() {
     document.getElementById('cfg-wa-verify').value = waCfg.verifyToken || 'pythonclaw_verify';
     document.getElementById('cfg-wa-callback').value = waCfg.callbackUrl || '';
     document.getElementById('cfg-wa-numbers').value = (waCfg.allowedNumbers || []).join(', ');
+    document.getElementById('cfg-wa-mention').checked = !!waCfg.requireMention;
+
+    const agentCfg = _rawConfig.agent || {};
+    document.getElementById('cfg-max-skills').value = agentCfg.maxParallelSkills || 5;
 
     const web = _rawConfig.web || {};
     document.getElementById('cfg-web-host').value = web.host || '0.0.0.0';
@@ -1334,10 +1408,6 @@ async function saveConfig() {
     if (!cfg.tavily) cfg.tavily = {};
     if (tavilyKey) cfg.tavily.apiKey = tavilyKey;
 
-    const shKey = document.getElementById('cfg-skillhub-key').value.trim();
-    if (!cfg.skillhub) cfg.skillhub = {};
-    if (shKey) cfg.skillhub.apiKey = shKey;
-
     const dgKey = document.getElementById('cfg-deepgram-key').value.trim();
     if (!cfg.deepgram) cfg.deepgram = {};
     if (dgKey) cfg.deepgram.apiKey = dgKey;
@@ -1363,12 +1433,14 @@ async function saveConfig() {
     if (tgToken) cfg.channels.telegram.token = tgToken;
     const tgUsers = document.getElementById('cfg-tg-users').value.trim();
     cfg.channels.telegram.allowedUsers = tgUsers ? tgUsers.split(',').map(s => s.trim()).filter(Boolean) : [];
+    cfg.channels.telegram.requireMention = document.getElementById('cfg-tg-mention').checked;
 
     if (!cfg.channels.discord) cfg.channels.discord = {};
     const dcToken = document.getElementById('cfg-dc-token').value.trim();
     if (dcToken) cfg.channels.discord.token = dcToken;
     const dcChannels = document.getElementById('cfg-dc-channels').value.trim();
     cfg.channels.discord.allowedChannels = dcChannels ? dcChannels.split(',').map(s => s.trim()).filter(Boolean) : [];
+    cfg.channels.discord.requireMention = document.getElementById('cfg-dc-mention').checked;
 
     if (!cfg.channels.whatsapp) cfg.channels.whatsapp = {};
     const waPhone = document.getElementById('cfg-wa-phone').value.trim();
@@ -1380,6 +1452,10 @@ async function saveConfig() {
     if (waCallback) cfg.channels.whatsapp.callbackUrl = waCallback;
     const waNumbers = document.getElementById('cfg-wa-numbers').value.trim();
     cfg.channels.whatsapp.allowedNumbers = waNumbers ? waNumbers.split(',').map(s => s.trim()).filter(Boolean) : [];
+    cfg.channels.whatsapp.requireMention = document.getElementById('cfg-wa-mention').checked;
+
+    if (!cfg.agent) cfg.agent = {};
+    cfg.agent.maxParallelSkills = parseInt(document.getElementById('cfg-max-skills').value) || 5;
 
     if (!cfg.web) cfg.web = {};
     cfg.web.host = document.getElementById('cfg-web-host').value.trim() || '0.0.0.0';
@@ -1426,12 +1502,57 @@ function connectWebSocket() {
   ws.onmessage = (event) => {
     const data = JSON.parse(event.data);
     if (data.type === 'thinking') { addThinking(); return; }
+    if (data.type === 'stream') {
+      removeThinking();
+      appendStreamToken(data.content);
+      return;
+    }
     removeThinking();
+    finalizeStream();
     chatWaiting = false;
     updateSendButton();
     if (data.type === 'response') addMessage('bot', data.content);
     else if (data.type === 'error') addMessage('bot', 'Error: ' + data.content);
   };
+}
+
+let _streamBubble = null;
+let _streamRaw = '';
+
+function appendStreamToken(text) {
+  const container = document.getElementById('chat-messages');
+  if (!_streamBubble) {
+    const welcome = container.querySelector('.text-center');
+    if (welcome) welcome.remove();
+    const wrapper = document.createElement('div');
+    wrapper.id = 'stream-wrapper';
+    wrapper.className = 'flex justify-start fade-in';
+    const row = document.createElement('div');
+    row.className = 'flex items-end gap-2.5 max-w-[75%]';
+    const avatar = document.createElement('div');
+    avatar.className = 'w-7 h-7 rounded-lg bg-surface-800 border border-surface-700 flex items-center justify-center shrink-0';
+    avatar.innerHTML = '<img src="/static/logo.png" class="w-4 h-4 rounded">';
+    row.appendChild(avatar);
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bot text-gray-200 rounded-2xl px-4 py-3 text-[.8125rem] leading-relaxed';
+    row.appendChild(bubble);
+    wrapper.appendChild(row);
+    container.appendChild(wrapper);
+    _streamBubble = bubble;
+    _streamRaw = '';
+  }
+  _streamRaw += text;
+  _streamBubble.innerHTML = renderMarkdown(_streamRaw);
+  scrollChat();
+}
+
+function finalizeStream() {
+  if (_streamBubble) {
+    const wrapper = document.getElementById('stream-wrapper');
+    if (wrapper) wrapper.remove();
+    _streamBubble = null;
+    _streamRaw = '';
+  }
 }
 
 function addMessage(role, content) {
@@ -1588,13 +1709,61 @@ async function transcribeAudio(blob) {
 }
 
 // ── Chat form ────────────────────────────────────────────────────────────────
+let _pendingImage = null;
+
+function handleImageSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    _pendingImage = reader.result;
+    document.getElementById('image-preview-img').src = _pendingImage;
+    document.getElementById('image-preview').classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+}
+
+function clearImageAttachment() {
+  _pendingImage = null;
+  document.getElementById('image-preview').classList.add('hidden');
+}
+
+document.getElementById('chat-input').addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      e.preventDefault();
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = () => {
+        _pendingImage = reader.result;
+        document.getElementById('image-preview-img').src = _pendingImage;
+        document.getElementById('image-preview').classList.remove('hidden');
+      };
+      reader.readAsDataURL(file);
+      break;
+    }
+  }
+});
+
 document.getElementById('chat-form').addEventListener('submit', (e) => {
   e.preventDefault();
   const input = document.getElementById('chat-input');
   const msg = input.value.trim();
-  if (!msg || chatWaiting || !ws || ws.readyState !== WebSocket.OPEN) return;
-  addMessage('user', msg);
-  ws.send(JSON.stringify({ message: msg }));
+  if ((!msg && !_pendingImage) || chatWaiting || !ws || ws.readyState !== WebSocket.OPEN) return;
+
+  const displayMsg = msg || '(image)';
+  addMessage('user', displayMsg);
+
+  if (_pendingImage) {
+    ws.send(JSON.stringify({ message: msg || 'What is in this image?', image: _pendingImage }));
+    clearImageAttachment();
+  } else {
+    ws.send(JSON.stringify({ message: msg }));
+  }
+
   input.value = '';
   chatWaiting = true;
   updateSendButton();

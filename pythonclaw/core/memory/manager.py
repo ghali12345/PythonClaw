@@ -139,6 +139,81 @@ class MemoryManager:
             return f"Forgot: {key}"
         return f"Nothing found for: {key}"
 
+    def memory_get(self, path: str) -> str:
+        """Read a specific file under the memory directory."""
+        return self.storage.read_memory_file(path)
+
+    def list_files(self) -> list[str]:
+        """List all .md files in the memory directory."""
+        return self.storage.list_memory_files()
+
+    # ── Boot context (auto-injected at session start) ────────────────────────
+
+    def boot_context(self, max_chars: int = 3000) -> str:
+        """Build a concise memory snapshot to inject at session start.
+
+        Includes:
+        1. Curated long-term memory (MEMORY.md) — user profile entries first,
+           then other entries, truncated to fit within the budget.
+        2. Recent daily logs (today + yesterday) — trimmed to fit remaining budget.
+
+        This ensures the agent always starts with relevant context without
+        needing an explicit ``recall()`` call.
+        """
+        parts: list[str] = []
+
+        index_content = self.storage.read_index()
+        if index_content:
+            parts.append("### INDEX (System Info)\n" + index_content)
+
+        all_mem = self._merged_memories()
+        used = sum(len(p) for p in parts)
+        mem_budget = int((max_chars - used) * 0.7)
+
+        if all_mem:
+            profile_keys = {"bot_name", "user_name", "user_profile",
+                           "assistant_personality", "assistant_focus_area",
+                           "assistant_tone", "assistant_domain",
+                           "onboarding_completed"}
+            profile = {k: v for k, v in all_mem.items() if k in profile_keys}
+            other = {k: v for k, v in all_mem.items() if k not in profile_keys}
+
+            lines: list[str] = []
+            for k, v in profile.items():
+                lines.append(f"- **{k}**: {v}")
+            total_len = sum(len(ln) for ln in lines)
+
+            for k, v in other.items():
+                line = f"- **{k}**: {v}"
+                if total_len + len(line) > mem_budget:
+                    remaining = len(other) - (len(lines) - len(profile))
+                    if remaining > 0:
+                        lines.append(f"- …({remaining} more entries — use `recall()` to search)")
+                    break
+                lines.append(line)
+                total_len += len(line)
+
+            parts.append("### Long-Term Memory\n" + "\n".join(lines))
+
+        daily_budget = max(500, max_chars - sum(len(p) for p in parts))
+        daily = self.storage.read_recent_daily_logs(days=2)
+        if daily:
+            if len(daily) > daily_budget:
+                daily = daily[:daily_budget] + "\n\n…(truncated)"
+            parts.append("### Recent Activity (Daily Logs)\n" + daily)
+
+        return "\n\n".join(parts) if parts else ""
+
+    # ── INDEX.md — curated system/config info ───────────────────────────────
+
+    def read_index(self) -> str:
+        """Read the INDEX.md curated system info file."""
+        return self.storage.read_index()
+
+    def write_index(self, content: str) -> str:
+        """Write the INDEX.md curated system info file."""
+        return self.storage.write_index(content)
+
     # ── Helpers used by compaction ───────────────────────────────────────────
 
     def list_all(self) -> dict:

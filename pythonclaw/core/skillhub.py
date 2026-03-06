@@ -1,8 +1,20 @@
 """
-SkillHub marketplace client for PythonClaw.
+Skill marketplace client for PythonClaw.
 
-Integrates with https://www.skillhub.club/ API to search, browse,
-and install community skills directly into the local skill directory.
+Primary source: ClawHub (https://topclawhubskills.com/api) — the OpenClaw
+public skills registry.  Free, no API key required, 13K+ skills.
+
+All endpoints are unauthenticated and return JSON directly.
+
+Available ClawHub endpoints
+---------------------------
+  GET /api/search?q=TERM   — free-text search
+  GET /api/top-downloads   — most downloaded skills
+  GET /api/top-stars       — most starred skills
+  GET /api/newest          — recently published skills
+  GET /api/certified       — security-verified skills
+  GET /api/stats           — platform statistics
+  GET /api/health          — API status
 """
 
 from __future__ import annotations
@@ -18,8 +30,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-API_BASE = "https://www.skillhub.club/api/v1"
-SKILL_PAGE_BASE = "https://www.skillhub.club/skills"
+CLAWHUB_API = "https://topclawhubskills.com/api"
+CLAWHUB_WEB = "https://clawhub.com"
 
 
 def _get_ssl_ctx() -> ssl.SSLContext:
@@ -35,199 +47,174 @@ def _get_ssl_ctx() -> ssl.SSLContext:
     return ctx
 
 
-def _api_key() -> str:
-    """Read SkillHub API key from config or environment."""
-    from .. import config
-    return config.get_str("skillhub", "apiKey", env="SKILLHUB_API_KEY")
-
-
-def _api_request(
-    method: str,
-    path: str,
-    *,
-    body: dict | None = None,
-    params: dict | None = None,
-    api_key_override: str | None = None,
-) -> dict:
-    """Make an authenticated request to the SkillHub API."""
-    api_key = api_key_override or _api_key()
-
-    url = f"{API_BASE}{path}"
+def _api_get(path: str, params: dict[str, Any] | None = None) -> dict:
+    """Make a GET request to the ClawHub API (no auth required)."""
+    url = f"{CLAWHUB_API}{path}"
     if params:
-        qs = "&".join(f"{k}={urllib.request.quote(str(v))}" for k, v in params.items() if v is not None)
+        qs = "&".join(
+            f"{k}={urllib.request.quote(str(v))}"
+            for k, v in params.items() if v is not None
+        )
         if qs:
             url = f"{url}?{qs}"
 
-    headers: dict[str, str] = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-        headers["x-api-key"] = api_key
-
-    data = json.dumps(body).encode("utf-8") if body else None
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    headers = {"User-Agent": "PythonClaw/1.0", "Accept": "application/json"}
+    req = urllib.request.Request(url, headers=headers)
 
     try:
         with urllib.request.urlopen(req, timeout=15, context=_get_ssl_ctx()) as resp:
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         err_body = exc.read().decode("utf-8", errors="replace")
-        logger.warning("SkillHub API error %s: %s", exc.code, err_body)
-        if exc.code == 401:
-            raise RuntimeError(
-                "SkillHub authentication failed (401). "
-                "Please check your API key at https://www.skillhub.club/account/billing"
-            ) from exc
-        raise RuntimeError(f"SkillHub API error ({exc.code}): {err_body}") from exc
+        logger.warning("ClawHub API error %s: %s", exc.code, err_body)
+        raise RuntimeError(f"ClawHub API error ({exc.code}): {err_body}") from exc
     except Exception as exc:
-        raise RuntimeError(f"SkillHub request failed: {exc}") from exc
+        raise RuntimeError(f"ClawHub request failed: {exc}") from exc
 
 
-def verify_key(api_key: str | None = None) -> dict:
-    """Verify a SkillHub API key by making a lightweight catalog request.
+def _normalize(skills: list[dict]) -> list[dict]:
+    """Normalize ClawHub skill records to a consistent format."""
+    results: list[dict] = []
+    for s in skills:
+        results.append({
+            "id": s.get("slug", ""),
+            "name": s.get("display_name", s.get("slug", "")),
+            "description": s.get("summary", "")[:160],
+            "author": s.get("owner_handle", ""),
+            "downloads": s.get("downloads", 0),
+            "stars": s.get("stars", 0),
+            "certified": s.get("is_certified", False),
+            "source_url": f"{CLAWHUB_WEB}/skills/{s.get('slug', '')}",
+        })
+    return results
 
-    Returns ``{"ok": True, "message": ...}`` on success or
-    ``{"ok": False, "error": ...}`` on failure.
+
+# ── Public API ────────────────────────────────────────────────────────────────
+
+def search(query: str, *, limit: int = 10, **_kwargs: Any) -> list[dict]:
+    """Search ClawHub for skills matching a query."""
+    result = _api_get("/search", params={"q": query})
+    data = result.get("data", [])
+    return _normalize(data[:limit])
+
+
+def browse(
+    *,
+    limit: int = 20,
+    sort: str = "score",
+    **_kwargs: Any,
+) -> list[dict]:
+    """Browse the ClawHub catalog.
+
+    *sort* maps to ClawHub endpoints:
+      - "score" / "downloads" → /top-downloads
+      - "stars"               → /top-stars
+      - "recent" / "newest"   → /newest
+      - "certified"           → /certified
     """
-    key = api_key or _api_key()
-    if not key:
-        return {"ok": False, "error": "No SkillHub API key configured."}
+    endpoint_map = {
+        "score": "/top-downloads",
+        "downloads": "/top-downloads",
+        "composite": "/top-downloads",
+        "stars": "/top-stars",
+        "recent": "/newest",
+        "newest": "/newest",
+        "certified": "/certified",
+    }
+    endpoint = endpoint_map.get(sort, "/top-downloads")
+    result = _api_get(endpoint)
+    data = result.get("data", [])
+    return _normalize(data[:limit])
+
+
+def get_skill_detail(skill_id: str) -> dict | None:
+    """Fetch detail for a skill.
+
+    ClawHub search results already contain summary info.  For full
+    instructions, the skill must be installed (``clawhub install``).
+    We return whatever metadata we have from the listing.
+    """
     try:
-        result = _api_request(
-            "GET", "/skills/catalog",
-            params={"limit": "1", "sort": "score"},
-            api_key_override=key,
-        )
-        count = len(result.get("results", result.get("skills", [])))
-        return {"ok": True, "message": f"Key verified ({count} skill(s) returned)."}
+        result = _api_get("/search", params={"q": skill_id})
+        data = result.get("data", [])
+        for s in data:
+            if s.get("slug") == skill_id:
+                normalized = _normalize([s])[0]
+                normalized["skill_md"] = _build_skill_md(s)
+                return normalized
+
+        if data:
+            s = data[0]
+            normalized = _normalize([s])[0]
+            normalized["skill_md"] = _build_skill_md(s)
+            return normalized
+    except Exception as exc:
+        logger.warning("ClawHub detail fetch failed for '%s': %s", skill_id, exc)
+
+    return None
+
+
+def stats() -> dict:
+    """Get ClawHub platform statistics."""
+    result = _api_get("/stats")
+    return result.get("data", result)
+
+
+def verify_api() -> dict:
+    """Verify ClawHub API is reachable (no key needed).
+
+    Returns ``{"ok": True, ...}`` on success.
+    """
+    try:
+        result = _api_get("/health")
+        if result.get("ok"):
+            count = result.get("skill_count", "?")
+            return {
+                "ok": True,
+                "message": f"ClawHub API is online ({count} skills available).",
+            }
+        return {"ok": False, "error": "Unexpected response from ClawHub API."}
     except RuntimeError as exc:
         return {"ok": False, "error": str(exc)}
 
 
-def search(query: str, *, limit: int = 10, category: str | None = None) -> list[dict]:
-    """Search SkillHub for skills matching a query."""
-    body: dict[str, Any] = {"query": query, "limit": limit, "method": "hybrid"}
-    if category:
-        body["category"] = category
-    result = _api_request("POST", "/skills/search", body=body)
-    return result.get("results", result.get("skills", []))
+# ── Install ───────────────────────────────────────────────────────────────────
 
+def _build_skill_md(skill: dict) -> str:
+    """Build a SKILL.md from ClawHub metadata."""
+    name = skill.get("display_name", skill.get("slug", "unknown"))
+    slug = skill.get("slug", "")
+    summary = skill.get("summary", "No description.")
+    author = skill.get("owner_handle", "")
+    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", name.lower()).strip("_")
 
-def browse(*, limit: int = 20, sort: str = "score", category: str | None = None) -> list[dict]:
-    """Browse the SkillHub catalog."""
-    params: dict[str, Any] = {"limit": limit, "sort": sort}
-    if category:
-        params["category"] = category
-    result = _api_request("GET", "/skills/catalog", params=params)
-    return result.get("results", result.get("skills", []))
+    lines = [
+        "---",
+        f"name: {safe_name}",
+        "description: >",
+        f"  {summary}",
+        "---",
+        "",
+        f"# {name}",
+        "",
+    ]
+    if author:
+        lines.append(f"*By @{author} on ClawHub*")
+        lines.append("")
+    lines.append(f"Source: {CLAWHUB_WEB}/skills/{slug}")
+    lines.append("")
+    lines.append("## Instructions")
+    lines.append("")
+    lines.append(f"This skill was imported from ClawHub (`{slug}`).")
+    lines.append("Refer to the source page for full documentation and usage instructions.")
+    lines.append("")
+    if summary:
+        lines.append("## Description")
+        lines.append("")
+        lines.append(summary)
+        lines.append("")
 
-
-def get_skill_detail(skill_id: str) -> dict | None:
-    """Fetch full detail for a skill, including SKILL.md content.
-
-    Tries the API first, falls back to scraping the skill page.
-    """
-    try:
-        result = _api_request("GET", f"/skills/{skill_id}")
-        skill = result.get("skill", result)
-        return {
-            "id": skill.get("slug", skill.get("id", skill_id)),
-            "name": skill.get("name", ""),
-            "description": skill.get("description", ""),
-            "skill_md": skill.get("skill_md_raw", skill.get("skill_md", "")),
-            "category": skill.get("category", ""),
-            "author": skill.get("author", ""),
-            "score": skill.get("composite_score", skill.get("simple_score", "")),
-            "stars": skill.get("github_stars", ""),
-            "source_url": skill.get("repo_url", f"{SKILL_PAGE_BASE}/{skill_id}"),
-        }
-    except Exception:
-        pass
-
-    return _scrape_skill_page(skill_id)
-
-
-def _scrape_skill_page(skill_id: str) -> dict | None:
-    """Fallback: scrape the skill page for SKILL.md content."""
-    url = f"{SKILL_PAGE_BASE}/{skill_id}"
-    req = urllib.request.Request(url, headers={"User-Agent": "PythonClaw/1.0"})
-    try:
-        with urllib.request.urlopen(req, timeout=15, context=_get_ssl_ctx()) as resp:
-            html = resp.read().decode("utf-8")
-    except Exception as exc:
-        logger.warning("Failed to fetch skill page %s: %s", url, exc)
-        return None
-
-    skill_md = _extract_skill_md(html)
-    if not skill_md:
-        return None
-
-    name_match = re.search(r"<h1[^>]*>(.*?)</h1>", html, re.DOTALL)
-    name = name_match.group(1).strip() if name_match else skill_id.split("-")[-1]
-    name = re.sub(r"<[^>]+>", "", name).strip()
-
-    desc = ""
-    fm_match = re.search(r"^description:\s*>?\s*(.+?)$", skill_md, re.MULTILINE)
-    if fm_match:
-        desc = fm_match.group(1).strip()
-
-    return {
-        "id": skill_id,
-        "name": name,
-        "description": desc,
-        "skill_md": skill_md,
-        "source_url": url,
-    }
-
-
-def _extract_skill_md(html: str) -> str | None:
-    """Extract SKILL.md content from a skill page HTML."""
-    # SkillHub renders skill content inside a prose-skill container.
-    # The frontmatter appears as <hr/> then <h2>name: ... description: ...
-    # followed by the instruction body.
-
-    m = re.search(
-        r'class="[^"]*prose-skill[^"]*"[^>]*>(.*?)(?:</div>\s*<div|$)',
-        html,
-        re.DOTALL,
-    )
-    if not m:
-        m = re.search(r'<hr/>\s*<h2>name:\s*\S+', html)
-        if m:
-            start = m.start()
-            end_markers = ['Content curated', 'User Rating', 'USER RATING', 'Grade ']
-            end = len(html)
-            for marker in end_markers:
-                pos = html.find(marker, start)
-                if pos != -1 and pos < end:
-                    end = pos
-            raw = html[start:end]
-        else:
-            return None
-    else:
-        raw = m.group(1)
-
-    raw = re.sub(r"<[^>]+>", "\n", raw)
-    raw = raw.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
-    raw = raw.replace("&quot;", '"').replace("&#39;", "'")
-
-    lines = []
-    for line in raw.split("\n"):
-        stripped = line.strip()
-        if stripped:
-            lines.append(stripped)
-
-    text = "\n".join(lines)
-
-    # Reconstruct frontmatter
-    fm_match = re.search(r'name:\s*(\S+)\s+description:\s*(.+?)(?=\n\w|\n#|\Z)', text, re.DOTALL)
-    if fm_match:
-        name = fm_match.group(1).strip()
-        desc = fm_match.group(2).strip()
-        body_start = fm_match.end()
-        body = text[body_start:].strip()
-        return f"---\nname: {name}\ndescription: >\n  {desc}\n---\n\n{body}"
-
-    return text if len(text) > 50 else None
+    return "\n".join(lines)
 
 
 def install_skill(
@@ -236,7 +223,7 @@ def install_skill(
     target_dir: str | None = None,
     skill_md_override: str | None = None,
 ) -> str:
-    """Download and install a skill from SkillHub into the local skills directory.
+    """Download and install a skill from ClawHub into the local skills directory.
 
     Returns the path to the installed skill directory.
     """
@@ -248,7 +235,7 @@ def install_skill(
     if not skill_md_override:
         detail = get_skill_detail(skill_id)
         if not detail:
-            raise RuntimeError(f"Could not fetch skill '{skill_id}' from SkillHub.")
+            raise RuntimeError(f"Could not fetch skill '{skill_id}' from ClawHub.")
 
     skill_md = skill_md_override or detail.get("skill_md", "")
     if not skill_md:
@@ -259,20 +246,20 @@ def install_skill(
     if not safe_name:
         safe_name = "imported_skill"
 
-    category = "skillhub"
+    category = "clawhub"
     skill_dir = os.path.join(target_dir, category, safe_name)
     os.makedirs(skill_dir, exist_ok=True)
 
     md_path = os.path.join(skill_dir, "SKILL.md")
-
     if not skill_md.startswith("---"):
-        skill_md = f"---\nname: {safe_name}\ndescription: Imported from SkillHub ({skill_id})\n---\n\n{skill_md}"
+        skill_md = f"---\nname: {safe_name}\ndescription: Imported from ClawHub ({skill_id})\n---\n\n{skill_md}"
 
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(skill_md + "\n")
 
-    source_url = detail.get("source_url", f"{SKILL_PAGE_BASE}/{skill_id}") if detail else f"{SKILL_PAGE_BASE}/{skill_id}"
-    meta_path = os.path.join(skill_dir, ".skillhub.json")
+    fallback_url = f"{CLAWHUB_WEB}/skills/{skill_id}"
+    source_url = detail.get("source_url", fallback_url) if detail else fallback_url
+    meta_path = os.path.join(skill_dir, ".clawhub.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump({"id": skill_id, "source": source_url, "installed_by": "pythonclaw"}, f, indent=2)
 
@@ -300,14 +287,17 @@ def format_search_results(results: list[dict]) -> str:
         name = r.get("name", r.get("title", "???"))
         desc = r.get("description", "")[:80]
         sid = r.get("id", r.get("slug", ""))
-        score = r.get("score", r.get("ai_score", ""))
+        downloads = r.get("downloads", "")
         stars = r.get("stars", "")
+        certified = r.get("certified", False)
 
         header = f"  {i}. {name}"
-        if score:
-            header += f"  (score: {score})"
+        if downloads:
+            header += f"  ↓{downloads:,}" if isinstance(downloads, int) else f"  ↓{downloads}"
         if stars:
             header += f"  ★{stars}"
+        if certified:
+            header += "  ✓certified"
 
         lines.append(header)
         if desc:

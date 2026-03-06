@@ -43,7 +43,7 @@ def _default_store_dir() -> str:
 
 
 DEFAULT_STORE_DIR = None  # resolved lazily
-DEFAULT_MAX_MESSAGES = 200
+DEFAULT_MAX_MESSAGES = 50
 
 _META_PATTERN = re.compile(r"<!-- msg:(.*?) -->")
 _ROLE_LABELS = {

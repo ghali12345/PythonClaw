@@ -36,7 +36,7 @@
 | | Feature | Details |
 |---|---------|---------|
 | 🧠 | **Provider-agnostic** | DeepSeek, Grok, Claude, Gemini, Kimi, GLM — or any OpenAI-compatible API |
-| 🛠️ | **Three-tier skills** | Progressive loading: metadata → instructions → resources. Community marketplace via [SkillHub](https://www.skillhub.club) |
+| 🛠️ | **Three-tier skills** | Progressive loading: metadata → instructions → resources. Community marketplace via [ClawHub](https://clawhub.com) (13K+ free skills) |
 | 💾 | **Persistent memory** | Markdown-based long-term memory with daily logs and semantic recall |
 | 🔍 | **Hybrid RAG** | BM25 + dense embeddings + RRF fusion + LLM re-ranking |
 | 🌐 | **Web dashboard** | Browser UI for chat, config, skill catalog, identity editing, and marketplace |
@@ -91,7 +91,7 @@ pythonclaw onboard
 | `pythonclaw stop` | Stop the running daemon |
 | `pythonclaw status` | Show daemon status (PID, uptime, port) |
 | `pythonclaw chat` | Interactive CLI chat (foreground REPL) |
-| `pythonclaw skill search <query>` | Search skills on [SkillHub](https://www.skillhub.club) |
+| `pythonclaw skill search <query>` | Search skills on [ClawHub](https://clawhub.com) |
 | `pythonclaw skill browse` | Browse top-rated skills |
 | `pythonclaw skill install <id>` | Install a community skill |
 | `pythonclaw skill info <id>` | View skill details |
@@ -149,7 +149,7 @@ $ pythonclaw start
 │               LLM Provider Abstraction Layer                 │
 │ DeepSeek │ Grok │ Claude │ Gemini │ Kimi │ GLM              │
 ├──────────────────────────────────────────────────────────────┤
-│              SkillHub Marketplace (skillhub.club)            │
+│              ClawHub Marketplace (clawhub.com)               │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -162,7 +162,7 @@ Start with `pythonclaw start` and open **http://localhost:7788**.
 - **Dashboard** — agent status, soul/persona preview, tool list
 - **Chat** — real-time chat with voice input (Deepgram)
 - **Skill Catalog** — browse installed skills by category
-- **Marketplace** — search and install skills from [SkillHub](https://www.skillhub.club)
+- **Marketplace** — search and install skills from [ClawHub](https://clawhub.com)
 - **Configuration** — edit LLM provider, API keys, and settings in-browser
 
 ---
@@ -230,9 +230,9 @@ description: Execute Python code safely in an isolated subprocess.
 Run `python {skill_path}/run_code.py "expression"`
 ```
 
-### SkillHub Marketplace
+### ClawHub Marketplace
 
-Browse and install 22,000+ community skills from [skillhub.club](https://www.skillhub.club):
+Browse and install 13,000+ community skills from [ClawHub](https://clawhub.com) — free, no API key required:
 
 ```bash
 pythonclaw skill search "database backup"
@@ -309,7 +309,7 @@ PythonClaw/
 │   │   ├── agent.py           # Core reasoning loop
 │   │   ├── tools.py           # Tool schemas and execution
 │   │   ├── skill_loader.py    # Three-tier skill system
-│   │   ├── skillhub.py        # SkillHub marketplace client
+│   │   ├── skillhub.py        # ClawHub marketplace client
 │   │   ├── persistent_agent.py
 │   │   ├── compaction.py      # Context compaction
 │   │   ├── llm/               # Provider adapters
@@ -355,7 +355,7 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 | CLI | `openclaw start/stop` | `pythonclaw start/stop/status` |
 | Dashboard | Web UI | Web UI (localhost:7788) |
 | Memory | Markdown | Markdown (long-term + daily) |
-| Skills | Plugin system | Three-tier + SkillHub marketplace |
+| Skills | Plugin system | Three-tier + ClawHub marketplace |
 | Channels | Discord, Telegram, WhatsApp | CLI, Web, Telegram, Discord, WhatsApp |
 | Voice | — | Deepgram STT |
 | LLM Providers | OpenAI, Anthropic, Gemini | DeepSeek, Grok, Claude, Gemini, Kimi, GLM |

@@ -3,7 +3,7 @@ name: notion
 description: "Notion API for creating and managing pages, databases, and blocks. Use when: user asks to create a Notion page, query a database, search notes, add content to Notion, or manage Notion workspace items. NOT for: local file editing (use read_file/write_file), Obsidian vaults (use obsidian skill), or real-time collaboration."
 dependencies: requests
 metadata:
-  emoji: "\U0001f4dd"
+  emoji: "📝"
 ---
 
 # Notion

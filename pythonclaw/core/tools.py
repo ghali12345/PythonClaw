@@ -298,6 +298,43 @@ MEMORY_TOOLS: list[dict] = [
         {"query": {"type": "string", "description": "Topic or question to search memory for. Use '*' for all memories."}},
         ["query"],
     ),
+    _fn(
+        "memory_get",
+        (
+            "Read a specific memory file by path. "
+            "Use 'MEMORY.md' for long-term memory or 'YYYY-MM-DD.md' for daily logs."
+        ),
+        {"path": {"type": "string", "description": "Filename relative to memory dir (e.g. 'MEMORY.md', '2026-03-03.md')."}},
+        ["path"],
+    ),
+    _fn(
+        "memory_list_files",
+        "List all memory files (MEMORY.md + daily logs).",
+        {},
+        [],
+    ),
+    _fn(
+        "forget",
+        "Delete a memory entry by key from long-term memory.",
+        {"key": {"type": "string", "description": "The key to remove from memory."}},
+        ["key"],
+    ),
+    _fn(
+        "update_index",
+        (
+            "Update the INDEX.md system info file. "
+            "Use this to store curated environment info, "
+            "API notes, and configuration that should "
+            "persist across sessions."
+        ),
+        {
+            "content": {
+                "type": "string",
+                "description": "Full Markdown content for INDEX.md.",
+            },
+        },
+        ["content"],
+    ),
 ]
 
 

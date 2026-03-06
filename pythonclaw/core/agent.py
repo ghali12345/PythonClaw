@@ -119,7 +119,8 @@ class Agent:
     cron_manager       : CronScheduler instance (enables cron_add/remove/list tools)
     """
 
-    MAX_TOOL_ROUNDS = 15
+    MAX_TOOL_ROUNDS = 8
+    MAX_PARALLEL_SKILLS = 5
 
     def __init__(
         self,
@@ -201,6 +202,9 @@ class Agent:
 
         self.loaded_skill_names: set[str] = set()
         self.pending_injections: list[str] = []
+        self.MAX_PARALLEL_SKILLS = config.get_int(
+            "agent", "maxParallelSkills", default=5,
+        )
 
         # Memory — with optional global fallback for per-group isolation
         mem_dir = memory_dir or config.get("memory", "dir", env="PYTHONCLAW_MEMORY_DIR")
@@ -299,77 +303,44 @@ class Agent:
    current events, facts you're unsure about, or technical documentation.
    Supports topic filters (general/news/finance) and time range filters."""
 
-        system_msg = f"""You are a PythonClaw agent — an autonomous AI assistant.{soul_section}{persona_section}{tools_section}
+        bot_name = ""
+        try:
+            if hasattr(self, "memory"):
+                bn = self.memory.list_all().get("bot_name", "")
+                if bn and bn != "PythonClaw":
+                    bot_name = f' Your name is "{bn}".'
+        except Exception:
+            pass
 
-You operate in a potentially sandboxed environment where you can execute code.
+        system_msg = f"""You are a PythonClaw agent — an autonomous AI assistant.{bot_name}{soul_section}{persona_section}{tools_section}
 
-### Tool Capabilities
-1. **Primitive Tools**: `run_command`, `read_file`, `write_file`, `list_files`
-   Note: `write_file` can only write within the project directory.
-2. **Skills** (three-tier progressive loading):
-   You have access to the following skills, organised by category.
-   Each skill's description tells you WHAT it does and WHEN to use it.
-
-   **Skill Catalog:**
+### Tools
+- **Primitives**: `run_command`, `read_file`, `write_file`, `list_files`
+- **Skills** — call `use_skill(name)` to activate. Catalog:
 {skill_catalog}
+- **Memory**: `remember(key,val)`, `recall(query)`, `memory_get(path)`, `memory_list_files()`, `forget(key)`, `update_index(content)`
+- **Skill creation**: `create_skill` — create generic reusable skills when none fit{web_search_section}
 
-   To activate a skill, call `use_skill(skill_name="<name>")`.
-   This loads detailed instructions into context.  After activation
-   you can use `list_skill_resources` to discover bundled scripts
-   and reference files, then `read_file` / `run_command` to use them.
-{web_search_section}
+### Rules
+- **Parallel skill execution**: For complex tasks, call multiple `use_skill` in ONE response (up to {self.MAX_PARALLEL_SKILLS} skills). They run in parallel for speed. Example: researching a topic? Activate `news`, `web_search`, and `summarize` simultaneously.
+- Batch independent tool calls in one response (parallel execution).
+- Minimize search rounds (1-3 max). Combine queries. Don't repeat.
+- Proactively `remember` user preferences, decisions, key facts.
+- Use `recall` when user references past context.
+- Memory auto-loaded at session start. INDEX.md = curated system info.
 
-### Skill Creation ("God Mode")
-If NO existing skill can fulfill the user's request, you can **create a new skill
-on the fly** using `create_skill`. This lets you:
-- Write a SKILL.md with instructions and bundled Python/shell scripts
-- Automatically install pip dependencies
-- The new skill becomes immediately available via `use_skill`
-
-Use this when the user needs a capability that doesn't exist yet.  Think carefully
-about the skill design: write clean, reusable code and a clear SKILL.md.
-
-**CRITICAL**: Always create GENERIC, reusable skills — NEVER task-specific ones.
-- BAD: `us_iran_news_fetcher` (only one topic), `send_bob_email` (one recipient)
-- GOOD: `news` (any topic as parameter), `email` (any recipient as parameter)
-All specifics (topics, recipients, URLs) must be command-line arguments.
-
-### Workflow
-1. User asks a question.
-2. Match the request against the skill catalog above.
-3. If a skill fits, call `use_skill` to load its instructions (Level 2).
-4. Follow the injected instructions.  Use `read_file` / `run_command`
-   to access bundled resources as needed (Level 3).
-5. If NO skill fits, consider creating one with `create_skill` — write
-   the script, install dependencies, then immediately `use_skill` to
-   activate and run it.
-
-### Performance — Be Efficient
-**CRITICAL RULES for speed:**
-1. **Batch tool calls**: When you need multiple independent searches or
-   tool calls, issue them ALL in a single response. They run in parallel
-   and are MUCH faster. NEVER do one search per round.
-2. **Minimize search rounds**: For most topics, 1-3 web searches total
-   is enough. Combine queries (e.g. "NVDA stock price P/E ratio analyst
-   ratings 2025" instead of 3 separate searches). Use `max_results=2-3`.
-3. **Don't repeat**: If a previous search already covered a topic, use
-   that data. Never search for the same information twice.
-4. **Answer quickly**: Gather just enough data to answer well, then
-   respond. Don't exhaustively search every sub-topic.
-
-### Memory
-You have a long-term memory.
-- **Proactively save** ALL user profile details, preferences, and key facts using `remember`.
-- Use `recall(query="<topic>")` to search memory semantically. Use `recall(query="*")` to retrieve ALL memories (full dump).
-- ALWAYS check memory (`recall`) if the user asks something that might be stored from a previous session.
-
-Always verify the output of your commands.
+Always verify command output.
 
 ### Response Guidelines
 - Answer the user's question directly and concisely.
 - Do NOT mention what skills or tools you have available, unless explicitly asked.
 - Do NOT list other things you can do at the end of your response.
 """
+        # ── Auto-inject memory context ────────────────────────────────────
+        boot_mem = self.memory.boot_context(max_chars=3000)
+        if boot_mem:
+            system_msg += f"\n\n## Loaded Memory (auto-injected at session start)\n{boot_mem}\n"
+
         if getattr(self, "_needs_onboarding", False):
             system_msg += """
 ### First-Time Onboarding
@@ -381,26 +352,88 @@ If the user replies in another language, switch to that language for
 the rest of the onboarding (and set that as their language preference).
 
 1. Greet the user warmly and introduce yourself as PythonClaw
-2. Ask: "What should I call you?" (wait for response)
-3. Ask: "What kind of personality would you like me to have? (e.g. professional, friendly, humorous, encouraging)"
-4. Ask: "What area would you like me to focus on? (e.g. software development, finance, research, daily assistant)"
+2. Ask: "What would you like to name me?" (let the user give you a custom name)
+3. Ask: "What should I call you?" (wait for response)
+4. Ask: "What kind of personality would you like me to have? (e.g. professional, friendly, humorous, encouraging)"
+5. Ask: "What area would you like me to focus on? (e.g. software development, finance, research, daily assistant)"
 
 After collecting ALL answers, use the `onboarding` skill to write the
 soul.md and persona.md files. Detect the user's language from their
 replies (default to English if they replied in English) and pass it as
-the `--language` argument. Then use `remember` to save the user's name
-and preferences to long-term memory.
+the `--language` argument. Then use `remember` to save:
+- `bot_name`: the custom name the user gave you
+- `user_name`: the user's name
+- user preferences to long-term memory
 
 Ask the questions ONE AT A TIME, waiting for each answer before asking the next.
 If the user's first message already contains task content (not just "hi"),
 still start onboarding but keep it brief — you can help with their task after.
 """
+        elif getattr(self, "memory", None):
+            try:
+                all_mem = self.memory.list_all()
+                if "bot_name" not in all_mem:
+                    system_msg += """
+### Bot Naming
+The user hasn't given you a custom name yet. On the first message,
+briefly ask: "By the way, would you like to give me a name? You can
+call me anything you like!" If they give a name, `remember("bot_name", name)`.
+If they say no or skip, `remember("bot_name", "PythonClaw")` and move on.
+Don't repeat this if `bot_name` already exists in memory.
+"""
+            except Exception:
+                pass
 
         self.messages.append({"role": "system", "content": system_msg})
         if self.verbose:
             logger.debug("System prompt built. Skill catalog: %d skills.", len(self._registry.discover()))
 
     # ── Tool management ───────────────────────────────────────────────────────
+
+    def _normalize_input(self, user_input: str | list) -> str | list:
+        """If provider doesn't support images, extract text from multimodal input."""
+        if isinstance(user_input, str):
+            return user_input
+        if getattr(self.provider, "supports_images", False):
+            return user_input
+        text_parts = []
+        for part in user_input:
+            if isinstance(part, dict) and part.get("type") == "text":
+                text_parts.append(part["text"])
+            elif isinstance(part, dict) and part.get("type") == "image_url":
+                text_parts.append("[image attached — your LLM provider does not support image input]")
+        return "\n".join(text_parts) if text_parts else str(user_input)
+
+    def _cap_parallel_skills(self, tool_calls: list) -> list:
+        """Enforce MAX_PARALLEL_SKILLS — cap skill activations per round.
+
+        Non-skill tool calls (run_command, remember, etc.) are not limited.
+        Excess skill calls get stub responses appended to messages.
+        """
+        skill_names = {"use_skill"}
+        skill_calls = [tc for tc in tool_calls if tc.function.name in skill_names]
+        if len(skill_calls) <= self.MAX_PARALLEL_SKILLS:
+            return tool_calls
+
+        keep = set(id(tc) for tc in skill_calls[:self.MAX_PARALLEL_SKILLS])
+        kept: list = []
+        for tc in tool_calls:
+            if tc.function.name in skill_names and id(tc) not in keep:
+                self.messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.id,
+                    "content": (
+                        f"(skipped — max {self.MAX_PARALLEL_SKILLS} "
+                        "parallel skills per round)"
+                    ),
+                })
+            else:
+                kept.append(tc)
+        logger.info(
+            "Capped parallel skills: %d → %d",
+            len(skill_calls), self.MAX_PARALLEL_SKILLS,
+        )
+        return kept
 
     def _build_tools(self) -> list[dict]:
         """Assemble the full tool schema list for the current session."""
@@ -437,6 +470,18 @@ still start onboarding but keep it brief — you can help with their task after.
                 result = self.memory.remember(args.get("content"), args.get("key"))
             elif func_name == "recall":
                 result = self.memory.recall(args.get("query", "*"))
+            elif func_name == "memory_get":
+                result = self.memory.memory_get(args.get("path", "MEMORY.md"))
+                if not result:
+                    result = "(file not found or empty)"
+            elif func_name == "memory_list_files":
+                files = self.memory.list_files()
+                result = "\n".join(files) if files else "(no memory files)"
+            elif func_name == "forget":
+                result = self.memory.forget(args.get("key", ""))
+            elif func_name == "update_index":
+                path = self.memory.write_index(args.get("content", ""))
+                result = f"INDEX.md updated at {path}"
             elif func_name == "consult_knowledge_base" and self.rag:
                 hits = self.rag.retrieve(args.get("query"), top_k=5)
                 if hits:
@@ -723,12 +768,28 @@ still start onboarding but keep it brief — you can help with their task after.
             preview += f"\n... ({len(lines) - 5} more lines)"
         return f"Compaction #{self.compaction_count} complete.\n\nSummary:\n{preview}"
 
+    _memory_flushed_this_cycle: bool = False
+
     def _maybe_auto_compact(self) -> bool:
-        """Auto-compact if the estimated token count exceeds the threshold."""
+        """Auto-compact if the estimated token count exceeds the threshold.
+
+        Before compacting, a proactive memory flush runs when the token
+        count crosses a soft threshold (80% of the compaction threshold).
+        This ensures durable facts are saved even if compaction itself fails.
+        """
         if not self.auto_compaction:
             return False
-        if estimate_tokens(self.messages) < self.compaction_threshold:
+
+        tokens = estimate_tokens(self.messages)
+        soft_threshold = int(self.compaction_threshold * 0.8)
+
+        if not self._memory_flushed_this_cycle and tokens >= soft_threshold:
+            self._proactive_memory_flush()
+            self._memory_flushed_this_cycle = True
+
+        if tokens < self.compaction_threshold:
             return False
+
         if self.verbose:
             logger.debug("Auto-compaction triggered.")
         try:
@@ -740,11 +801,31 @@ still start onboarding but keep it brief — you can help with their task after.
             )
             self.messages = new_messages
             self.compaction_count += 1
+            self._memory_flushed_this_cycle = False
             return True
         except Exception as exc:
             if self.verbose:
                 logger.debug("Auto-compaction failed (non-fatal): %s", exc)
             return False
+
+    def _proactive_memory_flush(self) -> None:
+        """Silently flush key facts to memory before compaction threshold.
+
+        Runs once per compaction cycle when tokens cross 80% of the
+        threshold. This way, important facts are persisted even if
+        compaction is delayed or fails.
+        """
+        from .compaction import memory_flush
+
+        chat_msgs = [m for m in self.messages if m.get("role") != "system"]
+        if len(chat_msgs) < 4:
+            return
+        try:
+            saved = memory_flush(chat_msgs, self.provider, self.memory)
+            if self.verbose and saved:
+                logger.debug("Proactive memory flush saved %d fact(s).", saved)
+        except Exception as exc:
+            logger.debug("Proactive memory flush failed (non-fatal): %s", exc)
 
     # ── Session management ─────────────────────────────────────────────────
 
@@ -762,19 +843,19 @@ still start onboarding but keep it brief — you can help with their task after.
 
     # ── Main chat loop ────────────────────────────────────────────────────────
 
-    def chat(self, user_input: str) -> str:
-        """
-        Send *user_input* to the LLM and return the final text response.
+    def chat(self, user_input: str | list, **kwargs) -> str:
+        """Send *user_input* to the LLM and return the final text response.
 
-        Runs the standard tool-use loop:
-          1. Build context window (auto-compact if needed)
-          2. Call LLM
-          3. If the model requests tool calls → execute → repeat
-          4. When the model replies with text → return it
+        *user_input* can be a plain string or a content-array for
+        multimodal input (e.g. ``[{"type":"text","text":"..."}, {"type":"image_url",...}]``).
         """
+        user_input = self._normalize_input(user_input)
         self.messages.append({"role": "user", "content": user_input})
 
-        _log_detail({"event": "user_input", "content": user_input})
+        _log_detail({
+            "event": "user_input",
+            "content": user_input if isinstance(user_input, str) else "(multimodal)",
+        })
 
         current_tools = self._build_tools()
         tool_rounds = 0
@@ -847,6 +928,8 @@ still start onboarding but keep it brief — you can help with their task after.
                 self.pending_injections = []
 
                 tool_calls = message.tool_calls
+                tool_calls = self._cap_parallel_skills(tool_calls)
+
                 _log_detail({
                     "event": "tool_calls",
                     "round": tool_rounds,
@@ -905,4 +988,140 @@ still start onboarding but keep it brief — you can help with their task after.
 
             except Exception as exc:
                 logger.exception("Critical error in Agent.chat()")
+                return f"Error: {exc}"
+
+    def chat_stream(
+        self,
+        user_input: str | list,
+        on_token: object = None,
+    ) -> str:
+        """Streaming variant of ``chat()``.
+
+        *user_input* can be a plain string or a multimodal content array.
+        *on_token* is called with each text chunk as it arrives.
+        Returns the full final text, same as ``chat()``.
+        """
+        user_input = self._normalize_input(user_input)
+        self.messages.append({"role": "user", "content": user_input})
+        _log_detail({
+            "event": "user_input",
+            "content": user_input if isinstance(user_input, str) else "(multimodal)",
+        })
+
+        current_tools = self._build_tools()
+        tool_rounds = 0
+        chat_start = time.monotonic()
+
+        while True:
+            try:
+                self._maybe_auto_compact()
+                messages_to_send = self._get_pruned_messages()
+
+                gen = self.provider.chat_stream(
+                    messages=messages_to_send,
+                    tools=current_tools,
+                    tool_choice="auto",
+                )
+                try:
+                    for chunk in gen:
+                        if chunk.get("type") == "text_delta" and on_token:
+                            on_token(chunk["text"])
+                except StopIteration as si:
+                    response = si.value
+                else:
+                    try:
+                        response = gen.send(None)
+                    except StopIteration as si:
+                        response = si.value
+
+                if response is None:
+                    return ""
+
+                message = response.choices[0].message
+
+                if not message.tool_calls:
+                    self.messages.append(message.model_dump())
+                    _log_detail({
+                        "event": "response",
+                        "tool_rounds": tool_rounds,
+                        "elapsed_ms": int(
+                            (time.monotonic() - chat_start) * 1000
+                        ),
+                        "response_len": len(message.content or ""),
+                    })
+                    return message.content or ""
+
+                tool_rounds += 1
+                if tool_rounds > self.MAX_TOOL_ROUNDS:
+                    msg_dump = message.model_dump()
+                    self.messages.append(msg_dump)
+                    for tc in message.tool_calls:
+                        self.messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": "(skipped — tool-call limit reached)",
+                        })
+                    limit_msg = (
+                        f"Reached the maximum of {self.MAX_TOOL_ROUNDS} "
+                        "tool-call rounds. Provide a final answer."
+                    )
+                    self.messages.append(
+                        {"role": "system", "content": limit_msg}
+                    )
+                    final = self.provider.chat(
+                        messages=self._get_pruned_messages(),
+                        tools=current_tools,
+                        tool_choice="none",
+                    )
+                    final_msg = final.choices[0].message
+                    self.messages.append(final_msg.model_dump())
+                    return final_msg.content or ""
+
+                self.messages.append(message.model_dump())
+                self.pending_injections = []
+
+                tool_calls = message.tool_calls
+                tool_calls = self._cap_parallel_skills(tool_calls)
+
+                if on_token:
+                    names = ", ".join(tc.function.name for tc in tool_calls)
+                    on_token(f"\n\n`[calling: {names}]`\n\n")
+
+                if len(tool_calls) == 1:
+                    result = self._execute_tool_call(tool_calls[0])
+                    self.messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_calls[0].id,
+                        "content": result,
+                    })
+                else:
+                    results: dict[str, str] = {}
+                    with ThreadPoolExecutor(
+                        max_workers=min(len(tool_calls), 8)
+                    ) as pool:
+                        futures = {
+                            pool.submit(self._execute_tool_call, tc): tc
+                            for tc in tool_calls
+                        }
+                        for future in as_completed(futures):
+                            tc = futures[future]
+                            try:
+                                results[tc.id] = future.result()
+                            except Exception as exc:
+                                results[tc.id] = f"Error: {exc}"
+                    for tc in tool_calls:
+                        self.messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc.id,
+                            "content": results[tc.id],
+                        })
+
+                for injection in self.pending_injections:
+                    self.messages.append(
+                        {"role": "system", "content": injection}
+                    )
+                self.pending_injections = []
+
+            except Exception as exc:
+                logger.exception("Critical error in Agent.chat_stream()")
                 return f"Error: {exc}"

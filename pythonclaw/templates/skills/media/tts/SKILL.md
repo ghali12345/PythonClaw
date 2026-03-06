@@ -3,7 +3,7 @@ name: tts
 description: "Text-to-speech — convert text to audio using gTTS or edge-tts. Use when: user asks to read text aloud, generate an audio file from text, or create a voiceover. NOT for: speech-to-text/transcription (use Deepgram or whisper), music generation, or audio editing."
 dependencies: gTTS
 metadata:
-  emoji: "\U0001f50a"
+  emoji: "🔊"
 ---
 
 # Text-to-Speech

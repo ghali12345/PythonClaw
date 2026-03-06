@@ -3,7 +3,7 @@ name: spotify
 description: "Control Spotify playback — play, pause, skip, search, and queue tracks. Use when: user asks to play music, search for songs, control playback, or manage Spotify queue. NOT for: downloading music, non-Spotify services (Apple Music, YouTube Music), or audio file playback."
 dependencies: requests
 metadata:
-  emoji: "\U0001f3b5"
+  emoji: "🎵"
 ---
 
 # Spotify

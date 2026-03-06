@@ -2,7 +2,7 @@
 name: obsidian
 description: "Work with Obsidian vaults (plain Markdown notes). Use when: user asks to search notes, create notes, move/rename notes, or manage their Obsidian vault. NOT for: Notion pages (use notion skill), non-Markdown files, or Obsidian plugin configuration."
 metadata:
-  emoji: "\U0001f48e"
+  emoji: "💎"
 ---
 
 # Obsidian

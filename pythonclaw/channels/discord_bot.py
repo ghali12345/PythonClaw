@@ -1,7 +1,7 @@
 """
 Discord channel for PythonClaw.
 
-Session IDs: "discord:{user_id}" (DMs) or "discord:{channel_id}" (guilds)
+Session IDs: "discord:dm:{user_id}" (DMs) or "discord:{channel_id}" (guilds)
 
 Commands
 --------
@@ -9,21 +9,29 @@ Commands
   !status         — show session info
   !compact [hint] — compact conversation history
   <text>          — forwarded to Agent.chat(), reply sent back
+  <image>         — image attachments sent to LLM for analysis
 
 The bot responds to:
   - Direct messages (always)
-  - Channel mentions (@bot message) in guilds
-  - Optionally all messages in whitelisted channels
+  - Channel mentions (@bot message) in guilds (when requireMention=true)
+  - All messages in whitelisted channels (when requireMention=false)
 
 Access control
 --------------
 Set DISCORD_ALLOWED_USERS to a comma-separated list of Discord user IDs.
 Set DISCORD_ALLOWED_CHANNELS to restrict which guild channels the bot listens in.
 Leave empty to allow all.
+
+Group behaviour
+---------------
+Set ``channels.discord.requireMention`` to ``true`` to require @bot mention
+in guild channels. Default is ``false`` (respond when mentioned OR in
+whitelisted channels).
 """
 
 from __future__ import annotations
 
+import base64
 import logging
 from typing import TYPE_CHECKING
 
@@ -52,11 +60,13 @@ class DiscordBot:
         token: str,
         allowed_users: list[int] | None = None,
         allowed_channels: list[int] | None = None,
+        require_mention: bool = False,
     ) -> None:
         self._sm = session_manager
         self._token = token
         self._allowed_users: set[int] = set(allowed_users) if allowed_users else set()
         self._allowed_channels: set[int] = set(allowed_channels) if allowed_channels else set()
+        self._require_mention = require_mention
 
         intents = discord.Intents.default()
         intents.message_content = True
@@ -113,20 +123,27 @@ class DiscordBot:
             is_dm = isinstance(message.channel, discord.DMChannel)
             is_mentioned = client.user in message.mentions if not is_dm else False
 
-            # In guilds, only respond to mentions or whitelisted channels
-            if not is_dm and not is_mentioned and not self._is_allowed_channel(message.channel.id):
-                return
+            if not is_dm:
+                if self._require_mention and not is_mentioned:
+                    return
+                if not self._require_mention and not is_mentioned:
+                    if not self._is_allowed_channel(message.channel.id):
+                        return
 
             if not self._is_allowed_user(message.author.id):
                 await message.reply("Sorry, you are not authorised to use this bot.")
                 return
 
             content = message.content.strip()
-            # Remove bot mention from the beginning
             if is_mentioned and client.user:
                 content = content.replace(f"<@{client.user.id}>", "").strip()
 
-            if not content:
+            has_image = any(
+                a.content_type and a.content_type.startswith("image/")
+                for a in message.attachments
+            )
+
+            if not content and not has_image:
                 return
 
             # Command dispatch
@@ -141,7 +158,35 @@ class DiscordBot:
                 await self._cmd_compact(message, is_dm, hint)
                 return
 
-            await self._handle_chat(message, content, is_dm)
+            chat_input = content or ""
+            if has_image:
+                chat_input = await self._build_image_input(
+                    message, content or "What's in this image?"
+                )
+
+            await self._handle_chat(message, chat_input, is_dm)
+
+    # ── Image handling ────────────────────────────────────────────────────────
+
+    @staticmethod
+    async def _build_image_input(message: discord.Message, caption: str) -> list:
+        """Download image attachments and build multimodal content array."""
+        parts: list[dict] = [{"type": "text", "text": caption}]
+        for att in message.attachments:
+            if att.content_type and att.content_type.startswith("image/"):
+                try:
+                    data = await att.read()
+                    b64 = base64.b64encode(data).decode()
+                    media_type = att.content_type.split(";")[0]
+                    parts.append({
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{media_type};base64,{b64}",
+                        },
+                    })
+                except Exception:
+                    logger.warning("[Discord] Failed to download attachment %s", att.filename)
+        return parts
 
     # ── Command implementations ───────────────────────────────────────────────
 
@@ -180,12 +225,17 @@ class DiscordBot:
         for chunk in self._split_message(result or "(no result)"):
             await message.reply(chunk)
 
-    async def _handle_chat(self, message: discord.Message, content: str, is_dm: bool) -> None:
+    async def _handle_chat(
+        self,
+        message: discord.Message,
+        content: str | list,
+        is_dm: bool,
+    ) -> None:
         sid = self._session_id(message.author.id if is_dm else message.channel.id, is_dm)
         agent = self._sm.get_or_create(sid)
 
         if self._sm.is_locked(sid):
-            await message.reply("Processing previous message…")
+            await message.reply("Processing previous message\u2026")
 
         async with message.channel.typing():
             try:
@@ -226,11 +276,15 @@ def create_bot(session_manager: "SessionManager") -> "DiscordBot":
     allowed_channels = config.get_int_list(
         "channels", "discord", "allowedChannels", env="DISCORD_ALLOWED_CHANNELS",
     )
+    require_mention = config.get_bool(
+        "channels", "discord", "requireMention", default=False,
+    )
     return DiscordBot(
         session_manager=session_manager,
         token=token,
         allowed_users=allowed_users or None,
         allowed_channels=allowed_channels or None,
+        require_mention=require_mention,
     )
 
 

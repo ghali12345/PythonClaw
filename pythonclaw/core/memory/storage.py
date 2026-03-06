@@ -42,6 +42,7 @@ class MemoryStorage:
         self.memory_dir = memory_dir
         os.makedirs(memory_dir, exist_ok=True)
         self._memory_file = os.path.join(memory_dir, "MEMORY.md")
+        self._index_file = os.path.join(memory_dir, "INDEX.md")
         self.data: Dict[str, dict] = {}   # key → {"value": ..., "updated": ...}
         self._load()
 
@@ -164,3 +165,85 @@ class MemoryStorage:
     def list_all(self) -> Dict[str, Any]:
         """Return {key: value} for all entries (latest version)."""
         return {k: v["value"] for k, v in self.data.items()}
+
+    # ── INDEX.md — curated system info (cached) ────────────────────────────
+
+    _index_cache: str | None = None
+
+    def read_index(self) -> str:
+        """Read INDEX.md content (cached). Returns empty string if not found."""
+        if self._index_cache is not None:
+            return self._index_cache
+        if not os.path.isfile(self._index_file):
+            self._index_cache = ""
+            return ""
+        try:
+            with open(self._index_file, "r", encoding="utf-8") as f:
+                self._index_cache = f.read().strip()
+        except OSError:
+            self._index_cache = ""
+        return self._index_cache
+
+    def write_index(self, content: str) -> str:
+        """Write INDEX.md content and invalidate cache. Returns file path."""
+        os.makedirs(os.path.dirname(self._index_file) or ".", exist_ok=True)
+        with open(self._index_file, "w", encoding="utf-8") as f:
+            f.write(content.strip() + "\n")
+        self._index_cache = content.strip()
+        return self._index_file
+
+    # ── Daily logs (cached with 60s TTL) ──────────────────────────────────
+
+    _daily_cache: str = ""
+    _daily_cache_ts: float = 0.0
+
+    def read_recent_daily_logs(self, days: int = 2) -> str:
+        """Read the last *days* daily logs, with 60s in-memory cache."""
+        import time as _time
+        from datetime import timedelta
+
+        now = _time.monotonic()
+        if self._daily_cache and (now - self._daily_cache_ts) < 60:
+            return self._daily_cache
+
+        parts: list[str] = []
+        today = datetime.now().date()
+        for offset in range(days):
+            d = today - timedelta(days=offset)
+            daily_file = os.path.join(self.memory_dir, f"{d.isoformat()}.md")
+            if os.path.isfile(daily_file):
+                try:
+                    with open(daily_file, "r", encoding="utf-8") as f:
+                        parts.append(f.read().strip())
+                except OSError:
+                    pass
+        self._daily_cache = "\n\n---\n\n".join(parts) if parts else ""
+        self._daily_cache_ts = now
+        return self._daily_cache
+
+    def read_memory_file(self, path: str) -> str:
+        """Read a specific file under the memory directory.
+
+        *path* is relative to the memory dir (e.g. ``MEMORY.md``,
+        ``2026-03-03.md``).  Returns ``""`` if the file does not exist.
+        """
+        full = os.path.normpath(os.path.join(self.memory_dir, path))
+        if not full.startswith(os.path.normpath(self.memory_dir)):
+            return "(access denied — path outside memory directory)"
+        if not os.path.isfile(full):
+            return ""
+        try:
+            with open(full, "r", encoding="utf-8") as f:
+                return f.read()
+        except OSError:
+            return ""
+
+    def list_memory_files(self) -> list[str]:
+        """List all .md files in the memory directory."""
+        try:
+            return sorted(
+                f for f in os.listdir(self.memory_dir)
+                if f.endswith(".md")
+            )
+        except OSError:
+            return []

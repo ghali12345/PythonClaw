@@ -2,7 +2,7 @@
 name: session_logs
 description: "Search and analyse your own conversation history from session files. Use when: user references older conversations, asks what was said before, or needs historical context from past sessions. NOT for: current session messages (already in context), non-session files, or external logs."
 metadata:
-  emoji: "\U0001f4dc"
+  emoji: "📜"
 ---
 
 # Session Logs

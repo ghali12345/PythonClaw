@@ -83,11 +83,17 @@ def create_app(provider: LLMProvider | None, *, build_provider_fn=None) -> FastA
     app.add_api_route("/api/identity/persona", _api_save_persona, methods=["POST"])
     app.add_api_route("/api/identity/tools", _api_get_tools_notes, methods=["GET"])
     app.add_api_route("/api/identity/tools", _api_save_tools_notes, methods=["POST"])
+    app.add_api_route("/api/memory/index", _api_get_index, methods=["GET"])
+    app.add_api_route("/api/memory/index", _api_save_index, methods=["POST"])
     app.add_api_route("/api/transcribe", _api_transcribe, methods=["POST"])
-    app.add_api_route("/api/skillhub/search", _api_skillhub_search, methods=["POST"])
-    app.add_api_route("/api/skillhub/browse", _api_skillhub_browse, methods=["GET"])
-    app.add_api_route("/api/skillhub/install", _api_skillhub_install, methods=["POST"])
-    app.add_api_route("/api/skillhub/verify", _api_skillhub_verify, methods=["POST"])
+    app.add_api_route("/api/marketplace/search", _api_marketplace_search, methods=["POST"])
+    app.add_api_route("/api/marketplace/browse", _api_marketplace_browse, methods=["GET"])
+    app.add_api_route("/api/marketplace/install", _api_marketplace_install, methods=["POST"])
+    app.add_api_route("/api/marketplace/stats", _api_marketplace_stats, methods=["GET"])
+    # Legacy aliases
+    app.add_api_route("/api/skillhub/search", _api_marketplace_search, methods=["POST"])
+    app.add_api_route("/api/skillhub/browse", _api_marketplace_browse, methods=["GET"])
+    app.add_api_route("/api/skillhub/install", _api_marketplace_install, methods=["POST"])
     app.add_api_route("/api/channels", _api_channels_status, methods=["GET"])
     app.add_api_route("/api/channels/restart", _api_channels_restart, methods=["POST"])
     app.add_websocket_route("/ws/chat", _ws_chat)
@@ -363,6 +369,13 @@ async def _api_identity():
     soul = _read_md(str(home / "context" / "soul"))
     persona = _read_md(str(home / "context" / "persona"))
     tools_notes = _read_md(str(home / "context" / "tools"))
+    index_file = home / "context" / "memory" / "INDEX.md"
+    index_content = None
+    if index_file.is_file():
+        try:
+            index_content = index_file.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
 
     def _tool_info(schema: dict) -> dict:
         fn = schema.get("function", {})
@@ -389,9 +402,11 @@ async def _api_identity():
         "soul": soul,
         "persona": persona,
         "toolsNotes": tools_notes,
+        "indexContent": index_content,
         "soulConfigured": soul is not None,
         "personaConfigured": persona is not None,
         "toolsNotesConfigured": tools_notes is not None,
+        "indexConfigured": index_content is not None,
         "tools": tools,
     }
 
@@ -468,6 +483,41 @@ async def _api_save_tools_notes(request: Request):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
+async def _api_get_index():
+    """Return the INDEX.md curated system info content."""
+    index_path = config.PYTHONCLAW_HOME / "context" / "memory" / "INDEX.md"
+    content = ""
+    if index_path.is_file():
+        try:
+            content = index_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            pass
+    return {"content": content, "path": str(index_path)}
+
+
+async def _api_save_index(request: Request):
+    """Save INDEX.md content and refresh agent memory."""
+    try:
+        body = await request.json()
+        content = body.get("content", "").strip()
+        index_dir = config.PYTHONCLAW_HOME / "context" / "memory"
+        index_dir.mkdir(parents=True, exist_ok=True)
+        index_file = index_dir / "INDEX.md"
+        index_file.write_text(content + "\n", encoding="utf-8")
+        logger.info("[Web] INDEX.md saved to %s", index_file)
+
+        agent = _get_agent()
+        if agent is not None:
+            agent.memory.storage._load()
+            agent._init_system_prompt()
+
+        return {"ok": True, "path": str(index_file)}
+    except Exception as exc:
+        return JSONResponse(
+            {"ok": False, "error": str(exc)}, status_code=500
+        )
+
+
 async def _api_transcribe(request: Request):
     """Proxy audio to Deepgram STT and return transcript."""
     import urllib.error
@@ -522,8 +572,8 @@ async def _api_transcribe(request: Request):
     return {"ok": True, "transcript": transcript}
 
 
-async def _api_skillhub_search(request: Request):
-    """Search SkillHub marketplace."""
+async def _api_marketplace_search(request: Request):
+    """Search ClawHub marketplace."""
     from ..core import skillhub
 
     try:
@@ -532,8 +582,7 @@ async def _api_skillhub_search(request: Request):
         if not query:
             return JSONResponse({"ok": False, "error": "Query is required."}, status_code=400)
         limit = int(body.get("limit", 10))
-        category = body.get("category")
-        results = skillhub.search(query, limit=limit, category=category)
+        results = skillhub.search(query, limit=limit)
         return {"ok": True, "results": results}
     except RuntimeError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
@@ -541,15 +590,14 @@ async def _api_skillhub_search(request: Request):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
-async def _api_skillhub_browse(request: Request):
-    """Browse SkillHub catalog."""
+async def _api_marketplace_browse(request: Request):
+    """Browse ClawHub catalog."""
     from ..core import skillhub
 
     try:
         limit = int(request.query_params.get("limit", 20))
         sort = request.query_params.get("sort", "score")
-        category = request.query_params.get("category")
-        results = skillhub.browse(limit=limit, sort=sort, category=category or None)
+        results = skillhub.browse(limit=limit, sort=sort)
         return {"ok": True, "results": results}
     except RuntimeError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
@@ -557,8 +605,8 @@ async def _api_skillhub_browse(request: Request):
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
-async def _api_skillhub_install(request: Request):
-    """Install a skill from SkillHub."""
+async def _api_marketplace_install(request: Request):
+    """Install a skill from ClawHub and hot-reload into the running agent."""
     from ..core import skillhub
 
     try:
@@ -570,29 +618,48 @@ async def _api_skillhub_install(request: Request):
         path = skillhub.install_skill(skill_id)
 
         agent = _get_agent()
+        skill_count = 0
+        installed_name = ""
         if agent is not None:
             agent._refresh_skill_registry()
+            skill_count = len(agent._registry.discover())
+            for sm in agent._registry.discover():
+                if sm.path == path:
+                    installed_name = sm.name
+                    break
 
-        return {"ok": True, "path": path, "message": f"Skill installed to {path}"}
+        if not installed_name:
+            import re as _re
+            md_path = os.path.join(path, "SKILL.md")
+            try:
+                md_text = open(md_path, encoding="utf-8").read()
+                m = _re.search(r"^name:\s*(.+)$", md_text, _re.MULTILINE)
+                installed_name = m.group(1).strip() if m else skill_id
+            except OSError:
+                installed_name = skill_id
+
+        return {
+            "ok": True,
+            "path": path,
+            "skill_name": installed_name,
+            "skill_count": skill_count,
+            "message": f"Skill '{installed_name}' installed and ready to use.",
+        }
     except RuntimeError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=502)
     except Exception as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
-async def _api_skillhub_verify(request: Request):
-    """Verify a SkillHub API key."""
+async def _api_marketplace_stats(request: Request):
+    """Get ClawHub marketplace statistics."""
     from ..core import skillhub
 
     try:
-        body = await request.json()
-        key = body.get("apiKey", "").strip()
-    except Exception:
-        key = ""
-
-    result = skillhub.verify_key(key or None)
-    status = 200 if result.get("ok") else 400
-    return JSONResponse(result, status_code=status)
+        result = skillhub.verify_api()
+        return result
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
 
 
 async def _maybe_start_channels() -> list[str]:
@@ -720,10 +787,12 @@ async def _ws_chat(websocket: WebSocket):
             try:
                 payload = json.loads(data)
                 message = payload.get("message", "").strip()
+                image_data = payload.get("image")  # data:image/...;base64,...
             except (json.JSONDecodeError, AttributeError):
                 message = data.strip()
+                image_data = None
 
-            if not message:
+            if not message and not image_data:
                 continue
 
             agent = _get_agent()
@@ -755,15 +824,51 @@ async def _ws_chat(websocket: WebSocket):
 
             lock = _get_chat_lock()
             if lock.locked():
-                await websocket.send_json({"type": "thinking", "content": "Processing previous message…"})
+                await websocket.send_json({"type": "thinking", "content": "Processing previous message\u2026"})
             else:
                 await websocket.send_json({"type": "thinking", "content": ""})
 
             loop = asyncio.get_event_loop()
             try:
+                token_queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+                def _on_token(text: str) -> None:
+                    loop.call_soon_threadsafe(token_queue.put_nowait, text)
+
+                async def _stream_tokens() -> None:
+                    while True:
+                        tok = await token_queue.get()
+                        if tok is None:
+                            break
+                        try:
+                            await websocket.send_json(
+                                {"type": "stream", "content": tok}
+                            )
+                        except Exception:
+                            break
+
+                # Build multimodal input if image is attached
+                chat_input: str | list = message or ""
+                if image_data:
+                    chat_input = [
+                        {"type": "text", "text": message or "What is in this image?"},
+                        {"type": "image_url", "image_url": {"url": image_data}},
+                    ]
+
                 async with lock:
-                    response = await loop.run_in_executor(None, agent.chat, message)
-                await websocket.send_json({"type": "response", "content": response})
+                    stream_task = asyncio.create_task(_stream_tokens())
+                    try:
+                        response = await loop.run_in_executor(
+                            None, agent.chat_stream, chat_input, _on_token
+                        )
+                    finally:
+                        loop.call_soon_threadsafe(
+                            token_queue.put_nowait, None
+                        )
+                        await stream_task
+                await websocket.send_json(
+                    {"type": "response", "content": response}
+                )
             except Exception as exc:
                 logger.exception("[Web] Chat error")
                 await websocket.send_json({"type": "error", "content": str(exc)})

@@ -2,7 +2,7 @@
 name: model_usage
 description: "Track and display LLM token usage, costs, and model statistics. Use when: user asks about token usage, API costs, how many messages were sent, or model performance stats. NOT for: changing the model or provider (use change_setting), or viewing conversation content (use session_logs)."
 metadata:
-  emoji: "\U0001f4c8"
+  emoji: "📈"
 ---
 
 # Model Usage

@@ -212,7 +212,7 @@ class SkillRegistry:
             return CategoryMetadata(
                 name=meta.get("name", fallback_name),
                 description=meta.get("description", ""),
-                emoji=meta.get("emoji", ""),
+                emoji=meta.get("emoji", "").strip("\"'"),
             )
         except OSError:
             return None
@@ -336,11 +336,10 @@ class SkillRegistry:
     # ── Catalog builder (for system prompt injection) ────────────────────
 
     def build_catalog(self) -> str:
-        """
-        Build a compact skill catalog string for the system prompt.
+        """Build a compact skill catalog for the system prompt.
 
-        Groups skills by category and formats them as a bulleted list
-        with category descriptions from CATEGORY.md.
+        Uses a terse format to minimize token usage while preserving
+        discoverability. Emojis are omitted in the prompt version.
         """
         skills = self.discover()
         if not skills:
@@ -352,16 +351,17 @@ class SkillRegistry:
 
         lines: list[str] = []
         for cat in sorted(groups):
+            cat_label = cat
             if cat != "general":
                 cat_meta = self._categories.get(cat)
-                if cat_meta and cat_meta.description:
-                    emoji = f"{cat_meta.emoji} " if cat_meta.emoji else ""
-                    lines.append(f"\n  **{emoji}{cat_meta.name}** — {cat_meta.description}")
-                else:
-                    lines.append(f"\n  **{cat}**")
-            for s in groups[cat]:
-                prefix = f"{s.emoji} " if s.emoji else ""
-                lines.append(f"  - {prefix}`{s.name}`: {s.description}")
+                if cat_meta and cat_meta.name:
+                    cat_label = cat_meta.name
+            lines.append(f"[{cat_label}]")
+            names = [
+                f"{s.name}: {s.description[:60]}"
+                for s in groups[cat]
+            ]
+            lines.append(", ".join(names))
 
         return "\n".join(lines)
 

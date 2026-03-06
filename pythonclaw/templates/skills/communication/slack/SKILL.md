@@ -3,7 +3,7 @@ name: slack
 description: "Slack API integration — send/read messages, react to messages, pin items, and fetch member info. Use when: user wants to send a Slack message, check Slack channels, react to a message, or manage pins. NOT for: Discord (use Discord channel), email (use email skill), or real-time Slack event streaming."
 dependencies: requests
 metadata:
-  emoji: "\U0001f4ac"
+  emoji: "💬"
 ---
 
 # Slack

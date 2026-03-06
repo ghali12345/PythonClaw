@@ -47,7 +47,7 @@ PROVIDERS = [
     },
     {
         "key": "claude",
-        "name": "Claude (Anthropic)",
+        "name": "Claude (Anthropic) — API key or setup-token",
         "default_model": "claude-sonnet-4-20250514",
         "default_base": None,
         "env": "ANTHROPIC_API_KEY",
@@ -170,8 +170,13 @@ def _get_api_key(provider: dict, cfg: dict) -> str:
         masked = existing[:4] + "****" + existing[-4:] if len(existing) > 8 else "****"
         hint = f" (current: {masked}, press Enter to keep)"
 
-    print(f"  {provider['name']} API Key{hint}")
-    key = getpass.getpass("  API Key: ").strip()
+    if provider["key"] == "claude":
+        print(f"  {provider['name']} Authentication{hint}")
+        print(_c("    Supports: API key (sk-ant-...) or setup-token (from `claude setup-token`)", _DIM))
+    else:
+        print(f"  {provider['name']} API Key{hint}")
+
+    key = getpass.getpass("  API Key / Token: ").strip()
 
     if not key and has_existing:
         print("  → Keeping existing key")
@@ -180,7 +185,10 @@ def _get_api_key(provider: dict, cfg: dict) -> str:
         print(_c("  API key is required.", _RED))
         return _get_api_key(provider, cfg)
 
-    print(f"  → Key set ({key[:4]}****)")
+    if provider["key"] == "claude" and not key.startswith("sk-ant-"):
+        print("  → Setup token set (session auth)")
+    else:
+        print(f"  → Key set ({key[:4]}****)")
     print()
     return key
 
@@ -204,14 +212,6 @@ def _optional_keys(cfg: dict) -> None:
         if dg:
             cfg.setdefault("deepgram", {})["apiKey"] = dg
             print("  → Deepgram key set")
-
-    # SkillHub
-    sh_existing = cfg.get("skillhub", {}).get("apiKey", "")
-    if not sh_existing:
-        sh = input("  SkillHub API Key (marketplace): ").strip()
-        if sh:
-            cfg.setdefault("skillhub", {})["apiKey"] = sh
-            print("  → SkillHub key set")
 
     print()
     _channel_keys(cfg)
@@ -321,7 +321,8 @@ def _validate_key(cfg: dict, provider: dict) -> None:
             p.chat([{"role": "user", "content": "hi"}], max_tokens=5)
         elif prov_key == "claude":
             from .core.llm.anthropic_client import AnthropicProvider
-            p = AnthropicProvider(api_key=api_key)
+            model = cfg["llm"][prov_key].get("model", provider["default_model"])
+            p = AnthropicProvider(api_key=api_key, model_name=model)
             p.chat([{"role": "user", "content": "hi"}], max_tokens=5)
         elif prov_key == "gemini":
             from .core.llm.gemini_client import GeminiProvider
@@ -356,7 +357,6 @@ def _save_config(cfg: dict, config_path: str | None) -> Path:
     })
     cfg.setdefault("tavily", {}).setdefault("apiKey", "")
     cfg.setdefault("deepgram", {}).setdefault("apiKey", "")
-    cfg.setdefault("skillhub", {}).setdefault("apiKey", "")
     cfg.setdefault("heartbeat", {"intervalSec": 60, "alertChatId": None})
     cfg.setdefault("memory", {"dir": None})
     cfg.setdefault("web", {"host": "0.0.0.0", "port": 7788})

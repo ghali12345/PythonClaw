@@ -8,7 +8,7 @@ Subcommands
   stop      Stop the running daemon
   status    Show daemon status
   chat      Interactive CLI chat (foreground)
-  skill     SkillHub marketplace (search / browse / install / info)
+  skill     ClawHub marketplace (search / browse / install / info)
 """
 
 import argparse
@@ -62,7 +62,12 @@ def _build_provider():
         api_key = config.get_str("llm", "claude", "apiKey", env="ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not set (env or pythonclaw.json)")
-        return AnthropicProvider(api_key=api_key)
+        return AnthropicProvider(
+            api_key=api_key,
+            model_name=config.get_str(
+                "llm", "claude", "model", default="claude-sonnet-4-20250514",
+            ),
+        )
 
     if provider_name == "gemini":
         from .core.llm.gemini_client import GeminiProvider
@@ -292,7 +297,7 @@ def _cmd_skill(args) -> None:
         if not query:
             print("Usage: pythonclaw skill search <query>")
             return
-        print(f"Searching SkillHub for: {query} ...")
+        print(f"Searching ClawHub for: {query} ...")
         try:
             results = skillhub.search(query, limit=args.limit or 10)
             print(skillhub.format_search_results(results))
@@ -300,7 +305,7 @@ def _cmd_skill(args) -> None:
             print(f"Error: {exc}")
 
     elif action == "browse":
-        print("Browsing SkillHub catalog ...")
+        print("Browsing ClawHub catalog ...")
         try:
             results = skillhub.browse(limit=args.limit or 20, sort=args.sort or "score")
             print(skillhub.format_search_results(results))
@@ -396,22 +401,22 @@ def _build_parser() -> argparse.ArgumentParser:
     sub.add_parser("chat", help="Interactive CLI chat (foreground)")
 
     # skill
-    skill_parser = sub.add_parser("skill", help="SkillHub marketplace commands")
+    skill_parser = sub.add_parser("skill", help="ClawHub marketplace commands")
     skill_sub = skill_parser.add_subparsers(dest="skill_action")
 
-    sp_search = skill_sub.add_parser("search", help="Search skills on SkillHub")
+    sp_search = skill_sub.add_parser("search", help="Search skills on ClawHub")
     sp_search.add_argument("query", nargs="+", help="Search query")
     sp_search.add_argument("--limit", type=int, default=10, help="Max results")
 
-    sp_browse = skill_sub.add_parser("browse", help="Browse SkillHub catalog")
+    sp_browse = skill_sub.add_parser("browse", help="Browse ClawHub catalog")
     sp_browse.add_argument("--limit", type=int, default=20, help="Max results")
     sp_browse.add_argument("--sort", default="score",
-                           choices=["score", "stars", "recent", "composite"])
+                           choices=["score", "stars", "recent", "newest", "certified"])
 
-    sp_install = skill_sub.add_parser("install", help="Install a skill from SkillHub")
+    sp_install = skill_sub.add_parser("install", help="Install a skill from ClawHub")
     sp_install.add_argument("skill_id", help="Skill ID (from search results)")
 
-    sp_info = skill_sub.add_parser("info", help="Show details for a SkillHub skill")
+    sp_info = skill_sub.add_parser("info", help="Show details for a ClawHub skill")
     sp_info.add_argument("skill_id", help="Skill ID")
 
     return parser

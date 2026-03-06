@@ -20,16 +20,23 @@ Commands
   !status         -- show session info
   !compact [hint] -- compact conversation history
   <text>          -- forwarded to Agent.chat(), reply sent back
+  <image>         -- image sent to LLM for analysis
 
 Access control
 --------------
 Set ``channels.whatsapp.allowedNumbers`` in ``pythonclaw.json`` to a list of
 E.164 phone numbers (without "+") to restrict access.  Leave empty to allow
 everyone.
+
+Group behaviour
+---------------
+Set ``channels.whatsapp.requireMention`` to ``true`` to require @bot mention
+in group chats.  DMs always respond.
 """
 
 from __future__ import annotations
 
+import base64
 import logging
 import threading
 from typing import TYPE_CHECKING
@@ -61,6 +68,7 @@ class WhatsAppBot:
         verify_token: str,
         callback_url: str | None = None,
         allowed_numbers: list[str] | None = None,
+        require_mention: bool = False,
     ) -> None:
         self._sm = session_manager
         self._phone_id = phone_id
@@ -68,8 +76,9 @@ class WhatsAppBot:
         self._verify_token = verify_token
         self._callback_url = callback_url
         self._allowed_numbers: set[str] = set(allowed_numbers) if allowed_numbers else set()
+        self._require_mention = require_mention
         self._wa = None  # set in mount()
-        self._locks: dict[str, threading.Lock] = {}  # per-session threading locks
+        self._locks: dict[str, threading.Lock] = {}
 
     # ── Session ID convention ─────────────────────────────────────────────────
 
@@ -92,10 +101,7 @@ class WhatsAppBot:
     # ── Mount on FastAPI ──────────────────────────────────────────────────────
 
     def mount(self, app: "FastAPI") -> None:
-        """Attach the PyWa webhook handler to *app*.
-
-        Must be called before the FastAPI server starts accepting requests.
-        """
+        """Attach the PyWa webhook handler to *app*."""
         try:
             from pywa import WhatsApp, types
         except ImportError:
@@ -116,7 +122,7 @@ class WhatsAppBot:
 
         wa = WhatsApp(**wa_kwargs)
         self._wa = wa
-        bot = self  # closure reference
+        bot = self
 
         @wa.on_message
         def _on_message(client: WhatsApp, msg: types.Message) -> None:
@@ -126,7 +132,20 @@ class WhatsAppBot:
                 return
 
             text = (msg.text or "").strip()
-            if not text:
+            has_image = msg.has_media and getattr(msg, "image", None) is not None
+
+            # Group mention check
+            is_group = getattr(msg, "is_group", False)
+            if is_group and bot._require_mention:
+                mentioned = False
+                if hasattr(msg, "mentioned") and msg.mentioned:
+                    mentioned = True
+                elif text and bot._phone_id:
+                    mentioned = bot._phone_id in text
+                if not mentioned:
+                    return
+
+            if not text and not has_image:
                 return
 
             sid = bot._session_id(wa_id)
@@ -161,13 +180,20 @@ class WhatsAppBot:
                     msg.reply(chunk)
                 return
 
+            # Build input (text or multimodal)
+            chat_input = text or "What's in this image?"
+            if has_image:
+                chat_input = _build_wa_image_input(
+                    client, msg, text or "What's in this image?"
+                )
+
             lock = bot._get_lock(sid)
             if lock.locked():
                 msg.reply("Processing previous message...")
 
             try:
                 with lock:
-                    response = agent.chat(text)
+                    response = agent.chat(chat_input)
             except Exception as exc:
                 logger.exception("[WhatsApp] Agent.chat() raised an exception")
                 response = f"Sorry, something went wrong: {exc}"
@@ -199,6 +225,27 @@ def _split_message(text: str, limit: int = 4096) -> list[str]:
         chunks.append(text[:limit])
         text = text[limit:]
     return chunks
+
+
+def _build_wa_image_input(client, msg, caption: str) -> list:
+    """Download WhatsApp image and build multimodal content array."""
+    try:
+        image = msg.image
+        data = image.download(in_memory=True)
+        b64 = base64.b64encode(data).decode()
+        media_type = getattr(image, "mime_type", "image/jpeg")
+        return [
+            {"type": "text", "text": caption},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{media_type};base64,{b64}",
+                },
+            },
+        ]
+    except Exception:
+        logger.warning("[WhatsApp] Failed to download image")
+        return caption
 
 
 def create_bot(session_manager: "SessionManager") -> WhatsAppBot:
@@ -239,6 +286,10 @@ def create_bot(session_manager: "SessionManager") -> WhatsAppBot:
         env="WHATSAPP_ALLOWED_NUMBERS",
     )
 
+    require_mention = config.get_bool(
+        "channels", "whatsapp", "requireMention", default=False,
+    )
+
     return WhatsAppBot(
         session_manager=session_manager,
         phone_id=phone_id,
@@ -246,6 +297,7 @@ def create_bot(session_manager: "SessionManager") -> WhatsAppBot:
         verify_token=verify_token,
         callback_url=callback_url,
         allowed_numbers=allowed_numbers or None,
+        require_mention=require_mention,
     )
 
 

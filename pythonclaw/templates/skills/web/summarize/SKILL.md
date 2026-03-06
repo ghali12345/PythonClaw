@@ -3,7 +3,7 @@ name: summarize
 description: "Summarize or extract text from URLs, articles, PDFs, and local files. Use when: user asks to summarize a link, article, web page, or document, or asks 'what is this link about?'. NOT for: YouTube transcripts (use youtube skill), full document editing, or real-time news (use news skill)."
 dependencies: requests, beautifulsoup4
 metadata:
-  emoji: "\U0001f9fe"
+  emoji: "🧾"
 ---
 
 # Summarize

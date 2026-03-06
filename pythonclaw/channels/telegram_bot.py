@@ -14,16 +14,23 @@ Commands
   /status         — show session info (provider, skills, memory, tokens, compactions)
   /compact [hint] — compact conversation history
   <text>          — forwarded to Agent.chat(), reply sent back
+  <photo>         — image sent to LLM with optional caption
 
 Access control
 --------------
 Set TELEGRAM_ALLOWED_USERS to a comma-separated list of integer Telegram user
 IDs to restrict access.  Leave empty (or unset) to allow all users.
+
+Group behaviour
+---------------
+Set ``channels.telegram.requireMention`` to ``true`` in pythonclaw.json to
+require @bot mention in group chats.  DMs always respond.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 from typing import TYPE_CHECKING
 
@@ -57,11 +64,14 @@ class TelegramBot:
         session_manager: "SessionManager",
         token: str,
         allowed_users: list[int] | None = None,
+        require_mention: bool = False,
     ) -> None:
         self._sm = session_manager
         self._token = token
         self._allowed_users: set[int] = set(allowed_users) if allowed_users else set()
+        self._require_mention = require_mention
         self._app: Application | None = None
+        self._bot_username: str | None = None
 
     # ── Session ID convention ─────────────────────────────────────────────────
 
@@ -93,6 +103,29 @@ class TelegramBot:
             return False
         return True
 
+    def _is_group(self, update: Update) -> bool:
+        """Return True if the message is from a group/supergroup."""
+        return update.effective_chat.type in ("group", "supergroup")
+
+    def _is_mentioned(self, update: Update) -> bool:
+        """Check if the bot is @mentioned in the message text."""
+        text = update.message.text or update.message.caption or ""
+        if self._bot_username and f"@{self._bot_username}" in text:
+            return True
+        entities = update.message.entities or update.message.caption_entities or []
+        for ent in entities:
+            if ent.type == "mention" and self._bot_username:
+                mention = text[ent.offset:ent.offset + ent.length]
+                if mention.lower() == f"@{self._bot_username.lower()}":
+                    return True
+        return False
+
+    def _strip_mention(self, text: str) -> str:
+        """Remove the @bot mention from message text."""
+        if self._bot_username:
+            text = text.replace(f"@{self._bot_username}", "").strip()
+        return text
+
     # ── Command handlers ──────────────────────────────────────────────────────
 
     async def _cmd_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -101,13 +134,14 @@ class TelegramBot:
         sid = self._session_id(update.effective_chat.id)
         self._sm.get_or_create(sid)
         await update.message.reply_text(
-            "👋 Hi! I'm your PythonClaw agent.\n\n"
-            "Just send me a message and I'll do my best to help.\n\n"
+            "\U0001f44b Hi! I'm your PythonClaw agent.\n\n"
+            "Just send me a message and I'll do my best to help.\n"
+            "You can also send photos and I'll analyze them.\n\n"
             "Commands:\n"
-            "  /start          — show this message\n"
-            "  /reset          — start a fresh session\n"
-            "  /status         — show session info\n"
-            "  /compact [hint] — compact conversation history"
+            "  /start          \u2014 show this message\n"
+            "  /reset          \u2014 start a fresh session\n"
+            "  /status         \u2014 show session info\n"
+            "  /compact [hint] \u2014 compact conversation history"
         )
 
     async def _cmd_reset(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -124,7 +158,7 @@ class TelegramBot:
         agent = self._sm.get_or_create(sid)
         from ..core.compaction import estimate_tokens
         await update.message.reply_text(
-            f"📊 Session Status\n"
+            f"\U0001f4ca Session Status\n"
             f"  Session ID   : {sid}\n"
             f"  Provider     : {type(agent.provider).__name__}\n"
             f"  Skills       : {len(agent.loaded_skill_names)} loaded\n"
@@ -141,7 +175,7 @@ class TelegramBot:
         sid = self._session_id(update.effective_chat.id)
         agent = self._sm.get_or_create(sid)
         hint: str | None = " ".join(context.args).strip() or None if context.args else None
-        await update.message.reply_text("⏳ Compacting conversation history...")
+        await update.message.reply_text("\u23f3 Compacting conversation history...")
         try:
             result = agent.compact(instruction=hint)
         except Exception as exc:
@@ -149,43 +183,55 @@ class TelegramBot:
         for chunk in _split_message(result):
             await update.message.reply_text(chunk)
 
-    # ── Message handler ───────────────────────────────────────────────────────
+    # ── Message handler (text + photos) ───────────────────────────────────────
 
     async def _handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         if not await self._check_access(update, context):
             return
-        user_text = (update.message.text or "").strip()
-        if not user_text:
+
+        if self._is_group(update) and self._require_mention:
+            if not self._is_mentioned(update):
+                return
+
+        user_text = (update.message.text or update.message.caption or "").strip()
+        user_text = self._strip_mention(user_text)
+
+        has_photo = bool(update.message.photo)
+
+        if not user_text and not has_photo:
             return
+
         sid = self._session_id(update.effective_chat.id)
         agent = self._sm.get_or_create(sid)
 
         if self._sm.is_locked(sid):
-            await update.message.reply_text("⏳ Processing previous message…")
+            await update.message.reply_text("\u23f3 Processing previous message\u2026")
 
-        # React to the message so the user knows the bot saw it
         try:
-            await update.message.set_reaction([ReactionTypeEmoji("👀")])
+            await update.message.set_reaction([ReactionTypeEmoji("\U0001f440")])
         except Exception:
-            pass  # reaction API may fail on older bot API or in groups
+            pass
 
-        # Keep "typing…" visible for the entire duration of processing.
-        # Telegram's typing indicator expires after ~5 s, so we resend it
-        # on a loop until the agent finishes.
+        # Build multimodal input if photo is present
+        chat_input = user_text or ""
+        if has_photo:
+            chat_input = await self._build_image_input(
+                update, user_text or "What's in this image?"
+            )
+
         typing_task = asyncio.create_task(
             self._keep_typing(update.message.chat_id)
         )
         try:
             async with self._sm.acquire(sid):
                 loop = asyncio.get_event_loop()
-                response = await loop.run_in_executor(None, agent.chat, user_text)
+                response = await loop.run_in_executor(None, agent.chat, chat_input)
         except Exception as exc:
             logger.exception("[Telegram] Agent.chat() raised an exception")
             response = f"Sorry, something went wrong: {exc}"
         finally:
             typing_task.cancel()
 
-        # Clear the "seen" reaction once we reply
         try:
             await update.message.set_reaction([])
         except Exception:
@@ -193,6 +239,23 @@ class TelegramBot:
 
         for chunk in _split_message(response or "(no response)"):
             await update.message.reply_text(chunk)
+
+    async def _build_image_input(self, update: Update, caption: str) -> list:
+        """Download photo and build a multimodal content array."""
+        photo = update.message.photo[-1]  # highest resolution
+        file = await photo.get_file()
+        data = await file.download_as_bytearray()
+        b64 = base64.b64encode(bytes(data)).decode()
+
+        return [
+            {"type": "text", "text": caption},
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{b64}",
+                },
+            },
+        ]
 
     async def _keep_typing(self, chat_id: int) -> None:
         """Re-send the 'typing' chat action every 4 s until cancelled."""
@@ -220,7 +283,10 @@ class TelegramBot:
         app.add_handler(CommandHandler("reset", self._cmd_reset))
         app.add_handler(CommandHandler("status", self._cmd_status))
         app.add_handler(CommandHandler("compact", self._cmd_compact))
-        app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message))
+        app.add_handler(MessageHandler(
+            (filters.TEXT | filters.PHOTO) & ~filters.COMMAND,
+            self._handle_message,
+        ))
         self._app = app
         return app
 
@@ -228,7 +294,12 @@ class TelegramBot:
         """Register slash-commands with Telegram so they appear in the menu."""
         try:
             await self._app.bot.set_my_commands(self._BOT_COMMANDS)
-            logger.info("[Telegram] Registered %d bot commands", len(self._BOT_COMMANDS))
+            me = await self._app.bot.get_me()
+            self._bot_username = me.username
+            logger.info(
+                "[Telegram] Registered %d bot commands, username=@%s",
+                len(self._BOT_COMMANDS), self._bot_username,
+            )
         except Exception:
             logger.warning("[Telegram] Failed to register bot commands", exc_info=True)
 
@@ -280,10 +351,14 @@ def create_bot(session_manager: "SessionManager") -> TelegramBot:
     allowed_users = config.get_int_list(
         "channels", "telegram", "allowedUsers", env="TELEGRAM_ALLOWED_USERS",
     )
+    require_mention = config.get_bool(
+        "channels", "telegram", "requireMention", default=False,
+    )
     return TelegramBot(
         session_manager=session_manager,
         token=token,
         allowed_users=allowed_users or None,
+        require_mention=require_mention,
     )
 
 

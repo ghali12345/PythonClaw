@@ -71,15 +71,41 @@ class PersistentAgent(Agent):
         for msg in saved:
             if msg.get("role") == "system":
                 content = msg.get("content", "")
-                # Support both old ("Skill Enabled:") and new ("SKILL ACTIVATED:") formats
                 m = re.search(r"(?:Skill Enabled|SKILL ACTIVATED):\s*(.+)", content)
                 if m:
                     self.loaded_skill_names.add(m.group(1).strip().rstrip("]"))
+
+        # Inject a fresh memory snapshot so the LLM sees up-to-date context
+        # near the end of the history (not just buried in the system prompt).
+        self._inject_memory_refresh()
 
         logger.info(
             "[PersistentAgent] Restored session '%s': %d messages, %d skills",
             self._session_id, len(saved), len(self.loaded_skill_names),
         )
+
+    def _inject_memory_refresh(self) -> None:
+        """Append a fresh memory snapshot as a system message.
+
+        Called after session restore so the LLM sees up-to-date long-term
+        memory near the latest conversation context, not just the stale
+        snapshot in the original system prompt.
+        """
+        try:
+            boot_mem = self.memory.boot_context(max_chars=2000)
+        except Exception:
+            return
+        if not boot_mem:
+            return
+        self.messages.append({
+            "role": "system",
+            "content": (
+                "[Memory Refresh — session restored]\n"
+                "The following is your latest long-term memory. "
+                "Use this context to personalize responses.\n\n"
+                f"{boot_mem}"
+            ),
+        })
 
     # ── Timestamp injection ──────────────────────────────────────────────────
 
