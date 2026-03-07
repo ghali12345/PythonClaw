@@ -1027,17 +1027,15 @@ Don't repeat this if `bot_name` already exists in memory.
                     tools=current_tools,
                     tool_choice="auto",
                 )
-                try:
-                    for chunk in gen:
+                response = None
+                while True:
+                    try:
+                        chunk = next(gen)
                         if chunk.get("type") == "text_delta" and on_token:
                             on_token(chunk["text"])
-                except StopIteration as si:
-                    response = si.value
-                else:
-                    try:
-                        response = gen.send(None)
                     except StopIteration as si:
                         response = si.value
+                        break
 
                 if response is None:
                     return ""
