@@ -15,10 +15,14 @@ Available ClawHub endpoints
   GET /api/certified       — security-verified skills
   GET /api/stats           — platform statistics
   GET /api/health          — API status
+
+Skill download (full ZIP with SKILL.md + assets):
+  GET https://wry-manatee-359.convex.site/api/v1/download?slug=SLUG
 """
 
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
@@ -26,12 +30,14 @@ import re
 import ssl
 import urllib.error
 import urllib.request
+import zipfile
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 CLAWHUB_API = "https://topclawhubskills.com/api"
 CLAWHUB_WEB = "https://clawhub.com"
+CLAWHUB_DOWNLOAD = "https://wry-manatee-359.convex.site/api/v1/download"
 
 
 def _get_ssl_ctx() -> ssl.SSLContext:
@@ -128,26 +134,16 @@ def browse(
 
 
 def get_skill_detail(skill_id: str) -> dict | None:
-    """Fetch detail for a skill.
-
-    ClawHub search results already contain summary info.  For full
-    instructions, the skill must be installed (``clawhub install``).
-    We return whatever metadata we have from the listing.
-    """
+    """Fetch metadata for a skill from ClawHub search API."""
     try:
         result = _api_get("/search", params={"q": skill_id})
         data = result.get("data", [])
         for s in data:
             if s.get("slug") == skill_id:
-                normalized = _normalize([s])[0]
-                normalized["skill_md"] = _build_skill_md(s)
-                return normalized
+                return _normalize([s])[0]
 
         if data:
-            s = data[0]
-            normalized = _normalize([s])[0]
-            normalized["skill_md"] = _build_skill_md(s)
-            return normalized
+            return _normalize([data[0]])[0]
     except Exception as exc:
         logger.warning("ClawHub detail fetch failed for '%s': %s", skill_id, exc)
 
@@ -180,41 +176,19 @@ def verify_api() -> dict:
 
 # ── Install ───────────────────────────────────────────────────────────────────
 
-def _build_skill_md(skill: dict) -> str:
-    """Build a SKILL.md from ClawHub metadata."""
-    name = skill.get("display_name", skill.get("slug", "unknown"))
-    slug = skill.get("slug", "")
-    summary = skill.get("summary", "No description.")
-    author = skill.get("owner_handle", "")
-    safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", name.lower()).strip("_")
-
-    lines = [
-        "---",
-        f"name: {safe_name}",
-        "description: >",
-        f"  {summary}",
-        "---",
-        "",
-        f"# {name}",
-        "",
-    ]
-    if author:
-        lines.append(f"*By @{author} on ClawHub*")
-        lines.append("")
-    lines.append(f"Source: {CLAWHUB_WEB}/skills/{slug}")
-    lines.append("")
-    lines.append("## Instructions")
-    lines.append("")
-    lines.append(f"This skill was imported from ClawHub (`{slug}`).")
-    lines.append("Refer to the source page for full documentation and usage instructions.")
-    lines.append("")
-    if summary:
-        lines.append("## Description")
-        lines.append("")
-        lines.append(summary)
-        lines.append("")
-
-    return "\n".join(lines)
+def _download_skill_zip(slug: str) -> bytes:
+    """Download the full skill ZIP from ClawHub's Convex CDN."""
+    url = f"{CLAWHUB_DOWNLOAD}?slug={urllib.request.quote(slug)}"
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "PythonClaw/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30, context=_get_ssl_ctx()) as resp:
+            return resp.read()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to download skill '{slug}' from ClawHub: {exc}"
+        ) from exc
 
 
 def install_skill(
@@ -225,24 +199,16 @@ def install_skill(
 ) -> str:
     """Download and install a skill from ClawHub into the local skills directory.
 
+    Downloads the full ZIP archive from ClawHub (contains SKILL.md plus
+    any assets, scripts, references, etc.) and extracts it.
+
     Returns the path to the installed skill directory.
     """
     if target_dir is None:
         from .. import config as _cfg
         target_dir = os.path.join(str(_cfg.PYTHONCLAW_HOME), "context", "skills")
 
-    detail = None
-    if not skill_md_override:
-        detail = get_skill_detail(skill_id)
-        if not detail:
-            raise RuntimeError(f"Could not fetch skill '{skill_id}' from ClawHub.")
-
-    skill_md = skill_md_override or detail.get("skill_md", "")
-    if not skill_md:
-        raise RuntimeError(f"No SKILL.md content found for '{skill_id}'.")
-
-    skill_name = _derive_skill_name(skill_id, skill_md, detail)
-    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", skill_name).strip("_")
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", skill_id).strip("_")
     if not safe_name:
         safe_name = "imported_skill"
 
@@ -250,31 +216,45 @@ def install_skill(
     skill_dir = os.path.join(target_dir, category, safe_name)
     os.makedirs(skill_dir, exist_ok=True)
 
-    md_path = os.path.join(skill_dir, "SKILL.md")
-    if not skill_md.startswith("---"):
-        skill_md = f"---\nname: {safe_name}\ndescription: Imported from ClawHub ({skill_id})\n---\n\n{skill_md}"
+    if skill_md_override:
+        md_path = os.path.join(skill_dir, "SKILL.md")
+        md = skill_md_override
+        if not md.startswith("---"):
+            md = f"---\nname: {safe_name}\ndescription: Imported from ClawHub ({skill_id})\n---\n\n{md}"
+        with open(md_path, "w", encoding="utf-8") as f:
+            f.write(md + "\n")
+    else:
+        raw_zip = _download_skill_zip(skill_id)
+        try:
+            zf = zipfile.ZipFile(io.BytesIO(raw_zip))
+        except zipfile.BadZipFile as exc:
+            raise RuntimeError(
+                f"ClawHub returned invalid ZIP for '{skill_id}'."
+            ) from exc
 
-    with open(md_path, "w", encoding="utf-8") as f:
-        f.write(skill_md + "\n")
+        for member in zf.namelist():
+            if member.startswith("__MACOSX") or member.startswith("."):
+                continue
+            dest = os.path.join(skill_dir, member)
+            if member.endswith("/"):
+                os.makedirs(dest, exist_ok=True)
+            else:
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, "wb") as f:
+                    f.write(zf.read(member))
 
-    fallback_url = f"{CLAWHUB_WEB}/skills/{skill_id}"
-    source_url = detail.get("source_url", fallback_url) if detail else fallback_url
+        if not os.path.exists(os.path.join(skill_dir, "SKILL.md")):
+            logger.warning("No SKILL.md found in ZIP for '%s'", skill_id)
+
+    source_url = f"{CLAWHUB_WEB}/skills/{skill_id}"
     meta_path = os.path.join(skill_dir, ".clawhub.json")
     with open(meta_path, "w", encoding="utf-8") as f:
-        json.dump({"id": skill_id, "source": source_url, "installed_by": "pythonclaw"}, f, indent=2)
+        json.dump(
+            {"id": skill_id, "source": source_url, "installed_by": "pythonclaw"},
+            f, indent=2,
+        )
 
     return skill_dir
-
-
-def _derive_skill_name(skill_id: str, skill_md: str, detail: dict | None) -> str:
-    """Extract a reasonable skill name from available data."""
-    name_match = re.search(r"^name:\s*(.+)$", skill_md, re.MULTILINE)
-    if name_match:
-        return name_match.group(1).strip()
-    if detail and detail.get("name"):
-        return detail["name"]
-    parts = skill_id.rsplit("-", 1)
-    return parts[-1] if parts else skill_id
 
 
 def format_search_results(results: list[dict]) -> str:
