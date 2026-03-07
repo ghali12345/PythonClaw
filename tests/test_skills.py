@@ -155,7 +155,7 @@ class TestCatalogBuilder:
     def test_catalog_groups_by_category(self, skills_dir):
         registry = SkillRegistry([skills_dir])
         catalog = registry.build_catalog()
-        assert "**math**" in catalog
+        assert "[math]" in catalog
 
     def test_catalog_empty_shows_message(self, tmp_path):
         registry = SkillRegistry([str(tmp_path)])
