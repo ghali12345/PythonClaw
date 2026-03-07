@@ -244,8 +244,7 @@ class TelegramBot:
         except Exception:
             pass
 
-    # Max wall-clock time for a single agent invocation (seconds).
-    _AGENT_TIMEOUT = 180
+    _AGENT_TIMEOUT = 600
 
     async def _flush_stream(
         self,
@@ -253,98 +252,47 @@ class TelegramBot:
         token_queue: "_queue.Queue[str]",
         future: "asyncio.Future[str]",
     ) -> None:
-        """Progressively stream tokens to Telegram via edit-in-place.
+        """Collect streamed tokens and deliver as 2-3 large messages.
 
-        Uses send-then-edit (like OpenClaw): one live message that gets
-        updated as tokens arrive (~1.5 s throttle).  Tool-call markers
-        produce a short status line and start a fresh message.
+        Strategy: accumulate all tokens silently. Tool-call markers are
+        stripped but do NOT trigger new messages.  Content is edit-in-place
+        updated into a single live message; only when a message hits the
+        Telegram 4096 char limit is a new message started.
 
-        Safeguards against hangs:
-        - **Heartbeat**: if no tokens arrive for 15 s, sends a "still
-          working" notification so the user knows the bot is alive.
-        - **Overall timeout**: after ``_AGENT_TIMEOUT`` seconds the
-          future is abandoned and a timeout message is sent.
+        No heartbeat / "still working" messages are sent.
         """
         buf: list[str] = []
         live_msg = None
         live_text = ""
         sent_any = False
-        THROTTLE = 1.5
-        HEARTBEAT_INTERVAL = 15.0
+        THROTTLE = 2.0
         last_edit = time.monotonic()
-        last_token_time = time.monotonic()
         start_time = time.monotonic()
-        heartbeat_sent = False
         _MARKER = re.compile(r'`\[calling:\s*([^\]]+)\]`')
 
         while not future.done():
-            # ── Overall timeout guard ─────────────────────────────────
             if (time.monotonic() - start_time) > self._AGENT_TIMEOUT:
                 logger.warning(
                     "[Telegram] Agent timeout after %ds", self._AGENT_TIMEOUT,
                 )
-                try:
-                    await update.message.reply_text(
-                        "\u23f0 The operation timed out. "
-                        "Please try a simpler request."
-                    )
-                except Exception:
-                    pass
-                return
+                break
 
-            # ── Drain token queue ─────────────────────────────────────
             drained = False
             while True:
                 try:
                     buf.append(token_queue.get_nowait())
                     drained = True
-                    last_token_time = time.monotonic()
-                    heartbeat_sent = False
                 except _queue.Empty:
                     break
 
-            # ── Heartbeat: notify user during long silences ───────────
-            if (
-                not drained
-                and not heartbeat_sent
-                and (time.monotonic() - last_token_time) > HEARTBEAT_INTERVAL
-            ):
-                try:
-                    await update.message.reply_text(
-                        "\u23f3 Still working\u2026"
-                    )
-                except Exception:
-                    pass
-                heartbeat_sent = True
-
             if not drained:
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.4)
                 continue
 
-            raw = "".join(buf)
+            raw = _MARKER.sub("", "".join(buf))
+            text = _clean_response(raw)
             now = time.monotonic()
 
-            # ── Tool-call marker → status line + new message ──────────
-            marker = _MARKER.search(raw)
-            if marker:
-                before = _clean_response(raw[:marker.start()])
-                if before and before != live_text:
-                    try:
-                        if live_msg:
-                            await live_msg.edit_text(before[:4096])
-                        else:
-                            await update.message.reply_text(before[:4096])
-                        sent_any = True
-                    except Exception:
-                        pass
-                live_msg = None
-                live_text = ""
-                buf = [raw[marker.end():].lstrip()]
-                last_edit = now
-                continue
-
-            # ── Regular text → edit-in-place ──────────────────────────
-            text = _clean_response(raw)
             if text and text != live_text and (now - last_edit) >= THROTTLE:
                 try:
                     if live_msg is None:
@@ -356,26 +304,27 @@ class TelegramBot:
                         await live_msg.edit_text(text)
                         live_text = text
                     else:
-                        await live_msg.edit_text(text[:4096])
+                        await live_msg.edit_text(live_text)
                         live_msg = None
                         live_text = ""
-                        buf = [text[4096:]]
+                        buf = [text[len(live_text):] if live_text else text]
                     sent_any = True
                 except Exception:
                     pass
                 last_edit = now
 
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.4)
 
         # ── Final drain ───────────────────────────────────────────────
-        response = future.result()
+        response = future.result() if future.done() else "(timed out)"
         while True:
             try:
                 buf.append(token_queue.get_nowait())
             except _queue.Empty:
                 break
 
-        remaining = _clean_response("".join(buf).strip())
+        raw = _MARKER.sub("", "".join(buf))
+        remaining = _clean_response(raw.strip())
         if remaining and remaining != live_text:
             try:
                 if live_msg and len(remaining) <= 4096:

@@ -120,9 +120,9 @@ class Agent:
     cron_manager       : CronScheduler instance (enables cron_add/remove/list tools)
     """
 
-    MAX_TOOL_ROUNDS = 8
+    MAX_TOOL_ROUNDS = 12
     MAX_PARALLEL_SKILLS = 5
-    TOOL_TIMEOUT = 90
+    TOOL_TIMEOUT = 300
 
     def __init__(
         self,

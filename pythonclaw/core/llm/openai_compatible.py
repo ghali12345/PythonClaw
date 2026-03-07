@@ -22,7 +22,7 @@ class OpenAICompatibleProvider(LLMProvider):
         self.client = OpenAI(
             api_key=api_key,
             base_url=base_url,
-            timeout=120.0,
+            timeout=300.0,
         )
         self.model_name = model_name
 

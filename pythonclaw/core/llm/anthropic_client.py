@@ -29,7 +29,7 @@ class AnthropicProvider(LLMProvider):
     def __init__(self, api_key: str, model_name: str = "claude-sonnet-4-20250514"):
         self.client = anthropic.Anthropic(
             api_key=api_key,
-            timeout=120.0,
+            timeout=300.0,
         )
         self.model_name = model_name
         self._auth_type = (
